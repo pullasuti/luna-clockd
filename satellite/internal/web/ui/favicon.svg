@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- the clock's eyes, glancing up-left (like its listening animation) -->
+  <rect x="2" y="10" width="60" height="44" rx="16" fill="#3a4049"/>
+  <rect x="8" y="16" width="48" height="32" rx="10" fill="#14161a"/>
+  <g fill="#4f9dff"><rect x="15" y="21" width="13" height="22" rx="5.5"/><rect x="36" y="21" width="13" height="22" rx="5.5"/></g>
+  <g fill="#14161a"><rect x="16.5" y="24.5" width="6" height="10" rx="2.5"/><rect x="37.5" y="24.5" width="6" height="10" rx="2.5"/></g>
+</svg>

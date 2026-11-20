@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clock setup</title>
+<style>
+:root { --bg:#14161a; --card:#1d2026; --line:#2c3038; --fg:#e8eaed; --dim:#9aa0a8; --acc:#5aa9ff; --ok:#3ecf8e; --bad:#ff6b6b;
+  /* Luna (docs/ui-design.md): white lights with a soft glow in dark slots; accent glow on the main button */
+  --lit:#fff; --well:#0e0f12; --unlit:#2a2c31; --glow-s:0 0 5px rgba(255,255,255,.75), 0 0 12px rgba(255,255,255,.35);
+  --glow-a:0 0 6px color-mix(in srgb, var(--acc) 55%, transparent), 0 0 14px color-mix(in srgb, var(--acc) 22%, transparent); }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width:480px; margin:0 auto; padding:22px 16px 40px; }
+h1 { font-size:22px; margin:0 0 4px; }
+.sub { color:var(--dim); margin:0 0 18px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:6px; margin-bottom:14px; }
+.net { display:flex; align-items:center; gap:12px; width:100%; padding:12px 10px; background:none; border:0; border-radius:10px; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+.net:hover, .net.sel { background:#262a31; }
+.net.sel { box-shadow:inset 3px 0 0 var(--lit), inset 4px 0 6px -2px rgba(255,255,255,.35); }
+.net .n { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.net small { color:var(--dim); }
+.bars { display:inline-flex; gap:2px; align-items:flex-end; height:14px; }
+.bars i { width:4px; background:var(--unlit); border-radius:1px; }
+.bars i.on { background:var(--lit); box-shadow:0 0 4px rgba(255,255,255,.6); }
+.bars i:nth-child(1) { height:5px } .bars i:nth-child(2) { height:8px } .bars i:nth-child(3) { height:11px } .bars i:nth-child(4) { height:14px }
+.form { padding:6px 10px 12px; }
+label { display:block; color:var(--dim); font-size:14px; margin:10px 0 6px; }
+input[type=text], input[type=password] { width:100%; padding:12px; border-radius:10px; border:1px solid var(--line); background:var(--well); color:var(--fg); font:inherit; box-shadow:inset 0 1px 2px rgba(0,0,0,.3); }
+input[type=text]:focus, input[type=password]:focus { outline:0; border-color:var(--acc); box-shadow:inset 0 1px 2px rgba(0,0,0,.3), var(--glow-a); }
+.chk { display:flex; gap:12px; align-items:center; justify-content:space-between; color:var(--fg); font-size:15px; margin:12px 0 0; cursor:pointer; }
+.chk input { -webkit-appearance:none; appearance:none; width:38px; height:22px; flex:none; margin:0; cursor:pointer; border:1px solid var(--line); border-radius:99px;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.45); background:radial-gradient(circle at 10px 50%, var(--unlit) 5px, transparent 5.6px), var(--well); }
+.chk input:checked { border-color:color-mix(in srgb, var(--lit) 35%, var(--line));
+  background:radial-gradient(circle at calc(100% - 10px) 50%, var(--lit) 5px, transparent 5.6px),
+    radial-gradient(circle at calc(100% - 10px) 50%, rgba(255,255,255,.4) 0, transparent 11px), color-mix(in srgb, var(--lit) 8%, var(--well)); }
+.chk input:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+button.go { width:100%; margin-top:16px; padding:13px; border:0; border-radius:10px; background:var(--acc); color:#06121f; font:600 16px system-ui, sans-serif; cursor:pointer;
+  box-shadow:0 0 10px color-mix(in srgb, var(--acc) 22%, transparent); }
+button.go:hover { box-shadow:var(--glow-a); }
+button.go:disabled { opacity:.5; }
+button.link { background:none; border:0; color:var(--acc); font:inherit; padding:8px 10px; cursor:pointer; }
+.msg { padding:16px; border-radius:14px; background:var(--card); border:1px solid var(--line); margin-bottom:14px; }
+.msg b { display:block; margin-bottom:6px; }
+.msg.ok b::before, .msg.bad b::before { content:""; display:inline-block; width:8px; height:8px; margin-right:9px; border-radius:50%; vertical-align:1px; }
+.msg.ok b::before { background:var(--lit); box-shadow:var(--glow-s); }
+.msg.bad { border-color:color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.msg.bad b::before { background:var(--bad); box-shadow:0 0 6px var(--bad); }
+.msg a { color:var(--acc); word-break:break-all; }
+.spin { display:inline-block; width:14px; height:14px; border:2px solid var(--dim); border-top-color:transparent; border-radius:50%; animation:s 1s linear infinite; vertical-align:-2px; margin-right:8px; }
+@keyframes s { to { transform:rotate(360deg); } }
+.code { font:600 40px/1.2 ui-monospace, monospace; letter-spacing:.18em; margin:12px 0 6px; color:var(--lit); text-shadow:var(--glow-s); }
+#confirm small { color:var(--dim); }
+.foot { color:var(--dim); font-size:13px; margin-top:22px; }
+[hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">Set up the clock</h1>
+  <p class="sub">Choose the Wi-Fi network the clock should join.</p>
+
+  <div id="status" class="msg" hidden></div>
+
+  <div class="msg" id="confirm" hidden>
+    <b>Confirm at the clock</b>
+    <span id="cf-text">Hold the action button (▶, on top of the clock) for a second. The clock's face shows this code:</span>
+    <div class="code" id="cf-code"></div>
+    <small id="cf-left"></small>
+    <button class="go" id="cf-again" hidden>Show a new code</button>
+  </div>
+
+  <div id="pick" hidden>
+    <div class="card" id="nets"><div class="net"><span class="spin"></span>Looking for networks…</div></div>
+    <div class="card form" id="form" hidden>
+      <div id="other" hidden>
+        <label for="ssid">Network name</label>
+        <input type="text" id="ssid" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div id="pwrow">
+        <label for="pw">Password for <span id="pwfor"></span></label>
+        <input type="password" id="pw" autocomplete="current-password">
+        <label class="chk" for="show">Show password<input type="checkbox" id="show"></label>
+      </div>
+      <button class="go" id="go">Connect</button>
+    </div>
+    <button class="link" id="rescan">Scan again</button>
+    <button class="link" id="hidden">Hidden network…</button>
+  </div>
+
+  <p class="foot" id="foot">The clock stays on this setup network while it tries; if your phone drops off, the clock's face shows the result.</p>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+let info = {}, sel = null, polling = false;
+// the confirm id from the button press (kept over a reload of the page)
+let cid = sessionStorage.getItem('setup-id') || '';
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function api(path, body, ms) {
+  const h = { 'X-Setup-Id': cid };
+  const o = body === undefined ? { headers: h } : { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify(body) };
+  if (ms && window.AbortSignal && AbortSignal.timeout) o.signal = AbortSignal.timeout(ms);
+  const r = await fetch(path, o);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+function bars(dbm) {
+  const n = dbm >= -55 ? 4 : dbm >= -65 ? 3 : dbm >= -75 ? 2 : 1;
+  return '<span class="bars" title="' + dbm + ' dBm">' + [1, 2, 3, 4].map(i => '<i class="' + (i <= n ? 'on' : '') + '"></i>').join('') + '</span>';
+}
+async function scan() {
+  $('#nets').innerHTML = '<div class="net"><span class="spin"></span>Looking for networks, this takes a few seconds…</div>';
+  try {
+    const { networks } = await api('/api/setup/scan', {});
+    const list = (networks || []).filter(n => n.ssid && n.ssid !== info.hotspot && n.security !== 'enterprise');
+    $('#nets').innerHTML = list.length ? list.map((n, i) =>
+      '<button class="net" data-i="' + i + '"><span class="n">' + esc(n.ssid) + '<br><small>' +
+      (n.security === 'open' ? 'open' : esc(n.security)) + ' · ' + (n.freq > 4000 ? '5 GHz' : '2.4 GHz') + '</small></span>' + bars(n.signal) + '</button>').join('')
+      : '<div class="net">No networks found. Scan again, or enter a hidden one.</div>';
+    $('#nets').querySelectorAll('[data-i]').forEach(b => b.onclick = () => choose(list[+b.dataset.i], b));
+  } catch (e) {
+    if (/button on the clock/.test(e.message)) { $('#pick').hidden = true; return askConfirm(); }
+    $('#nets').innerHTML = '<div class="net">Scan failed: ' + esc(e.message) + '</div>';
+  }
+}
+function choose(n, btn) {
+  sel = n;
+  document.querySelectorAll('.net').forEach(b => b.classList.toggle('sel', b === btn));
+  $('#other').hidden = !!n;
+  const open = n && n.security === 'open';
+  $('#pwrow').hidden = open;
+  $('#pwfor').textContent = n ? n.ssid : 'the network';
+  $('#form').hidden = false;
+  $('#pw').value = '';
+  (n ? (open ? $('#go') : $('#pw')) : $('#ssid')).focus();
+}
+function show(kind, html) {
+  const s = $('#status');
+  s.className = 'msg' + (kind ? ' ' + kind : '');
+  s.innerHTML = html;
+  s.hidden = false;
+}
+async function connect() {
+  const ssid = sel ? sel.ssid : $('#ssid').value.trim(), pw = $('#pwrow').hidden ? '' : $('#pw').value;
+  if (!ssid) return show('bad', '<b>Enter the network name.</b>');
+  if (pw && pw.length < 8) return show('bad', '<b>That password is too short.</b>Wi-Fi passwords are at least 8 characters.');
+  $('#go').disabled = true;
+  try {
+    await api('/api/setup/connect', { ssid, password: pw, hidden: !sel });
+  } catch (e) {
+    $('#go').disabled = false;
+    if (/button on the clock/.test(e.message)) { $('#pick').hidden = true; return askConfirm(); }
+    return show('bad', '<b>Could not start:</b>' + esc(e.message));
+  }
+  $('#pick').hidden = true;
+  show('', '<span class="spin"></span>Connecting to <b style="display:inline">' + esc(ssid) + '</b>… this takes up to 40 seconds.');
+  poll(ssid, Date.now(), 0);
+}
+// The clock has one radio: when it joins a network on another channel, this
+// hotspot moves to that channel and devices drop off for a few seconds, then
+// reconnect by themselves. So a failed request only counts as lost after 40 s
+// of nothing but failures.
+async function poll(ssid, started, failedSince) {
+  let i;
+  try {
+    i = await api('/api/setup', undefined, 4000);
+  } catch (e) {
+    const since = failedSince || Date.now();
+    if (Date.now() - since > 40000) return lost(ssid);
+    if (Date.now() - since > 3000)
+      show('', '<span class="spin"></span>The clock is joining <b style="display:inline">' + esc(ssid) + '</b>, so this setup network is moving to its channel. ' +
+        'Your device reconnects by itself in a few seconds; keep this page open.');
+    return setTimeout(() => poll(ssid, started, since), 2000);
+  }
+  const j = (i.wifi && i.wifi.job) || {};
+  if (j.ssid === ssid && j.state === 'connected') {
+    const url = 'http://' + i.name + '.local/';
+    show('ok', '<b>Connected to ' + esc(ssid) + '.</b>' +
+      'Switch your phone back to ' + esc(ssid) + ', then open the clock at <a href="' + url + '">' + esc(url) + '</a>' +
+      (i.wifi.ip ? ' (or <a href="http://' + esc(i.wifi.ip) + '/">' + esc(i.wifi.ip) + '</a>)' : '') + '.' +
+      '<br><br>Home Assistant finds it by itself: look under Settings › Devices &amp; services for “' + esc(i.friendly) + '”.' +
+      '<br><br><small style="color:var(--dim)" id="closes">This setup network closes in about a minute.</small>');
+    $('#foot').hidden = true;
+    if (typeof i.closes_in === 'number') closesIn(Date.now() + i.closes_in * 1000);
+    return;
+  }
+  if (j.ssid === ssid && j.state === 'failed') {
+    show('bad', '<b>Could not connect to ' + esc(ssid) + '.</b>' + esc(j.message || '') + '<br>Check the password and try again.');
+    $('#pick').hidden = false; $('#go').disabled = false;
+    return;
+  }
+  if (Date.now() - started > 90000) return lost(ssid);
+  setTimeout(() => poll(ssid, started, 0), 2000);
+}
+// the countdown to the hotspot closing (the clock keeps it a moment after
+// connecting so this page can show the result; a second device shouldn't join it now)
+function closesIn(end) {
+  const el = $('#closes'); if (!el) return;
+  const s = Math.max(0, Math.round((end - Date.now()) / 1000));
+  el.textContent = s ? 'This setup network closes in ' + (s >= 60 ? Math.floor(s / 60) + ' min ' : '') + (s % 60) + ' s.' : 'This setup network is closed now.';
+  if (s) setTimeout(() => closesIn(end), 1000);
+}
+function lost(ssid) {
+  show('', '<b>Your phone lost the setup network.</b>The clock\'s face shows “ok” and its address if it joined ' + esc(ssid) + '. ' +
+    'Then switch your phone back to ' + esc(ssid) + ' and open <a href="http://' + esc(info.name) + '.local/">http://' + esc(info.name) + '.local/</a>. ' +
+    'If it didn\'t, join “' + esc(info.hotspot) + '” again to retry.');
+}
+$('#go').onclick = connect;
+$('#pw').onkeydown = $('#ssid').onkeydown = e => { if (e.key === 'Enter') connect(); };
+$('#show').onchange = e => { $('#pw').type = e.target.checked ? 'text' : 'password'; };
+$('#rescan').onclick = scan;
+$('#hidden').onclick = () => choose(null, null);
+// Nothing on this page works before someone at the clock held the button.
+function confirmed() {
+  $('#confirm').hidden = true; $('#pick').hidden = false;
+  scan();
+}
+async function askConfirm() {
+  $('#confirm').hidden = false; $('#cf-again').hidden = true; $('#cf-left').textContent = '';
+  try {
+    const r = await api('/api/setup/confirm', {});
+    if (r.confirm === 'confirmed') return confirmed();
+    cid = r.id; sessionStorage.setItem('setup-id', cid);
+    $('#cf-code').textContent = r.code;
+    waitConfirm(Date.now() + r.expires_in * 1000);
+  } catch (e) {
+    $('#cf-code').textContent = '';
+    $('#cf-left').textContent = e.message;
+    $('#cf-again').hidden = false;
+  }
+}
+async function waitConfirm(until) {
+  const i = await api('/api/setup').catch(() => null);
+  if (i && i.confirm === 'confirmed') return confirmed();
+  if ((i && i.confirm !== 'waiting') || Date.now() > until) {
+    $('#cf-code').textContent = '';
+    $('#cf-left').textContent = 'The code ran out.';
+    $('#cf-again').hidden = false;
+    return;
+  }
+  $('#cf-left').textContent = 'Waiting for the button… ' + Math.max(0, Math.round((until - Date.now()) / 1000)) + ' s';
+  setTimeout(() => waitConfirm(until), 1000);
+}
+$('#cf-again').onclick = askConfirm;
+api('/api/setup').then(i => {
+  info = i;
+  if (i.friendly) $('#title').textContent = 'Set up ' + i.friendly;
+  if (!i.secured) $('#foot').textContent += ' This setup network has no password, so what you type here is not encrypted on the way to the clock.';
+  i.confirm === 'confirmed' ? confirmed() : askConfirm();
+}).catch(() => askConfirm());
+</script>
+</body>
+</html>

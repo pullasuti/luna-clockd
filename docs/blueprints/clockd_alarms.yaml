@@ -1,0 +1,169 @@
+blueprint:
+  name: clockd · alarms on the clocks
+  description: >-
+    Sets, lists, deletes and switches alarms on Lenovo Smart Clock Essentials running
+    clockd. Create one script from this blueprint with all your clocks, then expose the
+    script to Assist (the script's ⋮ › Settings › Voice assistants): a language model
+    conversation agent can then handle alarms by voice ("wake me up at quarter to seven
+    on weekdays", "what alarms do I have?", "delete the work alarm in the bedroom"). The
+    alarms are kept on the clocks and show in their web UI.
+  domain: script
+  source_url: https://github.com/pullasuti/luna-clockd/blob/master/docs/blueprints/clockd_alarms.yaml
+  input:
+    clocks:
+      name: Clocks
+      description: >-
+        The clocks this script handles. The first one is used when the request names no
+        clock; the others are picked by their name or area ("bedroom", "D202").
+      selector:
+        device:
+          multiple: true
+          filter:
+            - integration: esphome
+              manufacturer: lenovo
+              model: smart_clock
+
+fields:
+  action:
+    name: Action
+    description: >-
+      set (a new alarm), list (the alarms and the next one), delete, on or off (an
+      existing alarm). List the alarms first when unsure which alarm the user means.
+    required: true
+    example: set
+    selector:
+      select:
+        options: [set, list, delete, "on", "off"]
+  clock:
+    name: Clock
+    description: >-
+      Which clock: its area (room) or name, as the user said it. Leave empty for the
+      default clock; for list, empty lists every clock. An unknown clock gets an error
+      that lists the clocks.
+    example: bedroom
+    selector:
+      text:
+  time:
+    name: Time
+    description: "For set: the alarm time, 24-hour HH:MM, e.g. 06:45 or 19:30"
+    example: "06:45"
+    selector:
+      text:
+  days:
+    name: Days
+    description: "For set: once (default), daily, weekdays, weekends, or day names like mon,wed,fri"
+    example: weekdays
+    selector:
+      text:
+  label:
+    name: Label
+    description: "For set: optional name for the alarm, e.g. work"
+    selector:
+      text:
+  alarm:
+    name: Alarm
+    description: >-
+      For delete, on and off: the alarm's label, or its time (HH:MM) when it has no
+      label, as list shows it.
+    example: work
+    selector:
+      text:
+
+variables:
+  clocks: !input clocks
+  act: "{{ action | default('', true) | trim | lower }}"
+  # a clock matches when the request names its whole name, or any word of its name
+  # or area (except lenovo/smart/clock); nothing named: the first clock (list: all)
+  targets: >-
+    {% set w = (clock | default('', true) | trim | lower) %}
+    {%- set ns = namespace(hit=[]) %}
+    {%- for d in clocks %}
+      {%- set n = ((device_attr(d, 'name_by_user') or device_attr(d, 'name')) ~ ' ' ~ (area_name(d) or '')) | lower %}
+      {%- if w in n or n.split(' ') | select('in', w.split(' ')) | reject('in', ['lenovo', 'smart', 'clock', '']) | list | count > 0 %}
+        {%- set ns.hit = ns.hit + [d] %}
+      {%- endif %}
+    {%- endfor %}
+    {%- if w %}{{ ns.hit[:1] }}{% elif act == 'list' %}{{ clocks }}{% else %}{{ clocks[:1] }}{% endif %}
+  known: >-
+    {% for d in clocks %}{{ device_attr(d, 'name_by_user') or device_attr(d, 'name') }}{% if area_name(d) %} ({{ area_name(d) }}){% endif %}{{ ', ' if not loop.last }}{% endfor %}
+  # "7:30 pm", "7.30", "730" -> 19:30, 07:30, 07:30; anything else is passed on as is
+  # (the clock answers with an error). Small models often put the time of a new alarm
+  # in "alarm" (and the alarm to delete in "time"): either field is taken.
+  hhmm: >-
+    {% set t = (time | default(alarm | default('', true), true) | string | trim | lower) %}
+    {%- set pm = 'pm' in t or 'p.m.' in t %}{% set am = 'am' in t or 'a.m.' in t %}
+    {%- set d = t | regex_replace('[^0-9:.]', '') | replace('.', ':') %}
+    {%- set p = d.split(':') if ':' in d else ([d[:-2], d[-2:]] if d | length > 2 else [d, '0']) %}
+    {%- if p | length == 2 and p[0] | int(-1) >= 0 and p[1] | int(-1) >= 0 %}
+      {%- set h = p[0] | int %}{% set h = h + 12 if pm and h < 12 else (0 if am and h == 12 else h) %}
+      {{- '%02d:%02d' | format(h, p[1] | int) }}
+    {%- else %}{{ t }}{% endif %}
+  which: >-
+    {% set a = alarm | default(label | default('', true), true) | string | trim %}
+    {%- if a | regex_match('^[0-9]{1,2}[:.][0-9]{2}$') %}{{ '%02d:%s' | format(a[:-3] | int, a[-2:]) }}{% else %}{{ a or hhmm }}{% endif %}
+
+  # a request the script can't carry out: the reason goes back to the model as the
+  # script's response ("stop" messages are not templates, so they can't name the clock)
+  problem: >-
+    {% if act not in ['set', 'list', 'delete', 'on', 'off'] %}FAILED, nothing was done: unknown action '{{ action }}'. Use set, list, delete, on or off.
+    {%- elif targets | count == 0 %}FAILED, nothing was done: no clock matches '{{ clock }}'. The clocks are: {{ known }}. Call again with one of them, one call at a time.
+    {%- elif act == 'set' and not hhmm %}FAILED, nothing was set: set needs the alarm time in the time field (HH:MM).
+    {%- elif act in ['delete', 'on', 'off'] and not which %}FAILED, nothing was done: {{ act }} needs the alarm's label or HH:MM in the alarm field; call list to see them.
+    {%- endif %}
+
+sequence:
+  - if: "{{ problem != '' }}"
+    then:
+      - variables:
+          failed: "{{ {'error': problem} }}"
+      - stop: failed
+        response_variable: failed
+  - variables:
+      result: {}
+  # each clock's ESPHome name is lenovo-clock-<last four hex digits of its MAC>, its
+  # actions esphome.lenovo_clock_<those>_set_alarm and so on
+  - repeat:
+      for_each: "{{ targets }}"
+      sequence:
+        - variables:
+            node: >-
+              lenovo_clock_{{ (device_attr(repeat.item, 'connections') | selectattr('0', 'eq', 'mac')
+              | map(attribute='1') | first).replace(':', '')[-4:] | lower }}
+            name: "{{ device_attr(repeat.item, 'name_by_user') or device_attr(repeat.item, 'name') }}"
+        - choose:
+            - conditions: "{{ act == 'set' }}"
+              sequence:
+                - action: "esphome.{{ node }}_set_alarm"
+                  data:
+                    time: "{{ hhmm }}"
+                    days: "{{ days | default('once', true) }}"
+                    label: "{{ label | default('', true) }}"
+                - variables:
+                    result: "{{ {'clock': name, 'set': hhmm, 'days': days | default('once', true)} }}"
+            - conditions: "{{ act == 'delete' }}"
+              sequence:
+                - action: "esphome.{{ node }}_delete_alarm"
+                  data:
+                    alarm: "{{ which }}"
+                - variables:
+                    result: "{{ {'clock': name, 'deleted': which} }}"
+            - conditions: "{{ act in ['on', 'off'] }}"
+              sequence:
+                - action: "esphome.{{ node }}_switch_alarm"
+                  data:
+                    alarm: "{{ which }}"
+                    "on": "{{ act == 'on' }}"
+                - variables:
+                    result: "{{ {'clock': name, 'switched': which, 'on': act == 'on'} }}"
+            - conditions: "{{ act == 'list' }}"
+              sequence:
+                - action: "esphome.{{ node }}_list_alarms"
+                  response_variable: got
+                - variables:
+                    result: "{{ dict(result, **{name ~ (' (' ~ area_name(repeat.item) ~ ')' if area_name(repeat.item) else ''): got}) }}"
+  - stop: done
+    response_variable: result
+
+mode: queued
+trace:
+  stored_traces: 20

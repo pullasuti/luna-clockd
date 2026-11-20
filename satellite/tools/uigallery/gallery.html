@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>clockd UI gallery: Standard vs Luna</title>
+<!--
+  Component gallery for the clockd web UI refresh (not served by the clock).
+  Both columns use the SAME markup and the same interaction grammar (Material 3
+  rules: switch = one setting, chip = pick several, segmented = pick one of
+  2-5, badge = read-only status, filled/tonal/text buttons by importance).
+  Only the skin differs: .sk-std is a neutral skin, .sk-luna borrows the clock's
+  own hardware (status LEDs, seven-segment digits, fabric, night-light warmth).
+  Rule for Luna: one device element per control, behaviour always standard.
+  Themes are copied from internal/web/ui/index.html (keep in sync if adopted).
+-->
+<style>
+:root {
+  /* scales shared by both skins */
+  --r-xs:4px; --r-s:6px; --r-m:10px; --r-l:14px; --r-full:999px;
+  --t-xs:12px; --t-s:13px; --t-m:15px; --t-l:17px; --t-xl:22px;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px;
+  --hit:40px;            /* minimum touch target */
+  --font: system-ui, sans-serif; --glow:none;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:var(--t-m)/1.45 var(--font); text-shadow:var(--glow); }
+button, input, select { font:inherit; color:inherit; }
+
+/* gallery chrome (not part of the proposal) */
+.top { position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:var(--sp-3) var(--sp-5); align-items:center;
+  padding:10px 20px; background:var(--card); border-bottom:1px solid var(--line); }
+.top h1 { font-size:var(--t-l); margin:0 auto 0 0; font-weight:600; }
+.top label { font-size:var(--t-s); color:var(--dim); display:flex; gap:8px; align-items:center; }
+.top select { background:var(--input); border:1px solid var(--line); border-radius:var(--r-s); padding:5px 8px; }
+.note { max-width:1240px; margin:14px auto 0; padding:0 20px; color:var(--dim); font-size:var(--t-s); }
+.stage { display:grid; grid-template-columns:1fr 1fr; gap:28px; max-width:1240px; margin:0 auto; padding:16px 20px 60px; }
+body.phone .stage { grid-template-columns:390px 390px; justify-content:center; }
+.colh { margin:0 0 4px; font-size:var(--t-xl); font-weight:600; }
+.colsub { margin:0 0 var(--sp-4); color:var(--dim); font-size:var(--t-s); min-height:3em; }
+.skin { display:flex; flex-direction:column; gap:var(--sp-4); min-width:0; }
+body.phone .skin { --t-m:15px; }
+
+/* ===================== shared structure ===================== */
+.card { background:var(--card); border:1px solid var(--line); border-radius:var(--r-m); padding:var(--sp-4); }
+.card > h2 { margin:0 0 var(--sp-1); font-size:var(--t-l); font-weight:600; }
+.card > .lead { margin:0 0 var(--sp-2); color:var(--dim); font-size:var(--t-s); }
+.sec { margin:var(--sp-4) 0 var(--sp-1); font-size:var(--t-xs); font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); }
+
+/* settings row: text left, control right */
+.set { display:flex; align-items:center; gap:var(--sp-3); min-height:56px; padding:var(--sp-2) 0; border-top:1px solid var(--line); }
+.set:first-of-type, .opt-rows > .set:first-child { border-top:0; }
+.set .txt { flex:1; min-width:0; }
+.set .ttl { display:flex; align-items:center; gap:var(--sp-2); flex-wrap:wrap; }
+.set .desc { color:var(--dim); font-size:var(--t-s); }
+.set.off .ttl, .set.off .desc { opacity:.5; }
+.help { display:none; margin-top:var(--sp-1); padding:var(--sp-2) var(--sp-3); border-radius:var(--r-s); font-size:var(--t-s); color:var(--dim);
+  background:color-mix(in srgb, var(--line) 45%, transparent); }
+.set.helpopen .help { display:block; }
+.qbtn { width:22px; height:22px; border-radius:50%; border:1px solid var(--line); background:none; color:var(--dim); font-size:12px; line-height:1; cursor:pointer; padding:0; }
+.qbtn:hover { color:var(--fg); border-color:var(--dim); }
+
+/* switch: <button role=switch aria-checked> */
+.sw { position:relative; flex:0 0 auto; cursor:pointer; padding:0; border:0; }
+.sw::after { content:""; position:absolute; transition:transform .18s, background .18s, box-shadow .18s; }
+.sw:focus-visible { outline:2px solid var(--acc); outline-offset:3px; }
+
+
+/* segmented: one of a few */
+.segc { display:flex; padding:var(--sp-2) 0; }
+.segc .seg { display:flex; width:100%; border:1px solid var(--line); overflow:hidden; }
+.seg button { flex:1 1 0; min-width:0; min-height:36px; border:0; border-left:1px solid var(--line); background:transparent; color:var(--dim);
+  cursor:pointer; font-size:var(--t-s); transition:background .15s, color .15s; }
+.seg button:first-child { border-left:0; }
+.seg button:focus-visible { outline:2px solid var(--acc); outline-offset:-2px; }
+
+/* slider row */
+.rng { display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-2) 0; }
+.rng .rl { width:92px; flex:0 0 auto; color:var(--dim); font-size:var(--t-s); }
+.rng input { flex:1; min-width:0; margin:0; -webkit-appearance:none; appearance:none; background:transparent; height:var(--hit); cursor:pointer; --p:50%; }
+.rbox { display:contents; } .rfill { display:none; }
+.rng .val { width:64px; flex:0 0 auto; text-align:right; font-variant-numeric:tabular-nums; }
+
+/* buttons */
+.btns { display:flex; flex-wrap:wrap; gap:var(--sp-2); align-items:center; padding:var(--sp-2) 0; }
+.b { display:inline-flex; align-items:center; gap:6px; min-height:36px; padding:0 16px; border:0; cursor:pointer; font-size:var(--t-s); font-weight:600; transition:background .15s, box-shadow .15s, filter .15s; }
+.b:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+.b.filled { background:var(--acc); color:var(--accfg); }
+.b.filled:hover { filter:brightness(1.08); }
+.b.tonal { background:color-mix(in srgb, var(--acc) 16%, var(--card)); color:var(--fg); }
+.b.tonal:hover { background:color-mix(in srgb, var(--acc) 24%, var(--card)); }
+.b.text { background:transparent; color:var(--acc); padding:0 10px; }
+.b.text:hover { background:color-mix(in srgb, var(--acc) 10%, transparent); }
+.b.danger { background:color-mix(in srgb, var(--bad) 15%, var(--card)); color:var(--bad); }
+.b.danger:hover { background:color-mix(in srgb, var(--bad) 24%, var(--card)); }
+.b.icon { width:36px; padding:0; justify-content:center; background:transparent; color:var(--dim); }
+.b.icon:hover { color:var(--bad); background:color-mix(in srgb, var(--line) 60%, transparent); }
+.ic { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+
+/* read-only status badge: never looks clickable (no border, no hover, small) */
+.badges { display:flex; flex-wrap:wrap; gap:var(--sp-2); padding:var(--sp-2) 0; }
+.badge { display:inline-flex; align-items:center; gap:6px; font-size:var(--t-xs); cursor:default; user-select:none; }
+
+/* fields */
+.field { padding:var(--sp-2) 0; }
+.field label { display:block; font-size:var(--t-s); color:var(--dim); margin-bottom:4px; }
+.field input, .field select { width:100%; min-height:38px; padding:6px 10px; background:var(--input); border:1px solid var(--line); }
+.field input:focus, .field select:focus { outline:2px solid color-mix(in srgb, var(--acc) 60%, transparent); outline-offset:0; border-color:var(--acc); }
+
+/* tile (status page) */
+.tile { display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-3); border:1px solid var(--line); background:var(--card); }
+.tile .tn { font-weight:600; } .tile .ts { color:var(--dim); font-size:var(--t-s); }
+.tile .tv { margin-left:auto; text-align:right; }
+
+/* face preview */
+.face { display:flex; align-items:center; justify-content:space-between; gap:var(--sp-4); padding:var(--sp-5) var(--sp-5); }
+.face .fd { color:var(--dim); font-size:var(--t-s); }
+
+/* ===================== Standard skin ===================== */
+.sk-std .card, .sk-std .tile { border-radius:var(--r-m); }
+.sk-std .sw { width:40px; height:24px; border-radius:var(--r-full); background:var(--line); }
+.sk-std .sw::after { left:3px; top:3px; width:18px; height:18px; border-radius:50%; background:var(--dim); }
+.sk-std .sw[aria-checked=true] { background:var(--acc); }
+.sk-std .sw[aria-checked=true]::after { transform:translateX(16px); background:var(--accfg); }
+.sk-std .seg { border-radius:var(--r-full); }
+.sk-std .seg button[aria-pressed=true] { background:color-mix(in srgb, var(--acc) 20%, var(--card)); color:var(--fg); font-weight:600; }
+.sk-std .rng input::-webkit-slider-runnable-track { height:4px; border-radius:2px; background:linear-gradient(90deg, var(--acc) var(--p), var(--line) var(--p)); }
+.sk-std .rng input::-moz-range-track { height:4px; border-radius:2px; background:linear-gradient(90deg, var(--acc) var(--p), var(--line) var(--p)); }
+.sk-std .rng input::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; margin-top:-7px; border-radius:50%; background:var(--acc); border:0; }
+.sk-std .rng input::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:var(--acc); border:0; }
+.sk-std .b { border-radius:var(--r-full); }
+.sk-std .b.icon { border-radius:50%; }
+.sk-std .badge { padding:2px 8px; border-radius:var(--r-xs); background:color-mix(in srgb, var(--line) 70%, transparent); color:var(--dim); }
+.sk-std .badge.ok { background:color-mix(in srgb, var(--ok) 15%, transparent); color:var(--ok); }
+.sk-std .badge.bad { background:color-mix(in srgb, var(--bad) 15%, transparent); color:var(--bad); }
+.sk-std .badge.warn { background:color-mix(in srgb, var(--warn) 15%, transparent); color:var(--warn); }
+.sk-std .field input, .sk-std .field select { border-radius:var(--r-s); }
+.sk-std .face .tm { font:600 56px/1 ui-monospace, monospace; }
+.sk-std .b.busy { opacity:.7; }
+.sk-std .b.busy::before { content:""; width:12px; height:12px; border-radius:50%; border:2px solid currentColor; border-right-color:transparent; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ===================== Luna skin =====================
+   --lit: a lit segment/LED. The clock face only has white lights, so white with a soft glow.
+   Lights always sit in something dark (a well or the black display window), so they read
+   in light themes too. */
+.sk-luna { --lit:#ffffff; --glow-s:0 0 5px rgba(255,255,255,.75), 0 0 12px rgba(255,255,255,.35);
+  --glow-a:0 0 6px color-mix(in srgb, var(--acc) 55%, transparent), 0 0 14px color-mix(in srgb, var(--acc) 22%, transparent);
+  --unlit:#2a2c31; --well:#0e0f12; --glass:#0b0c0e; }
+body.lit-acc .sk-luna { --glow-s:0 0 6px var(--lit), 0 0 14px color-mix(in srgb, var(--lit) 55%, transparent); }
+body.light .sk-luna .field input, body.light .sk-luna .field select { background:var(--input); box-shadow:inset 0 1px 2px rgba(0,0,0,.12); }
+body.light .sk-luna .field input:focus, body.light .sk-luna .field select:focus { box-shadow:inset 0 1px 2px rgba(0,0,0,.12), var(--glow-a); }
+body.lit-acc .sk-luna { --lit:var(--acc); }
+body.notrans *, body.notrans *::before, body.notrans *::after { transition:none !important; }
+.sk-luna .card, .sk-luna .tile { border-radius:var(--r-l); }
+/* switch = an LED in a recessed slot: the thumb lights up when on */
+.sk-luna .sw { width:44px; height:24px; border-radius:var(--r-full); background:var(--well); border:1px solid var(--line);
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.45); }
+.sk-luna .sw::after { left:4px; top:4px; width:14px; height:14px; border-radius:50%; background:var(--unlit); box-shadow:inset 0 -1px 1px rgba(0,0,0,.35); }
+.sk-luna .sw[aria-checked=true] { border-color:color-mix(in srgb, var(--lit) 35%, var(--line)); background:color-mix(in srgb, var(--lit) 8%, var(--well)); }
+.sk-luna .sw[aria-checked=true]::after { transform:translateX(20px); background:var(--lit);
+  box-shadow:var(--glow-s); }
+/* segmented = a selector whose chosen position carries a glowing light strip */
+.sk-luna .seg { border-radius:var(--r-m); background:var(--well); box-shadow:inset 0 1px 3px rgba(0,0,0,.35); }
+.sk-luna .seg button { position:relative; }
+.sk-luna .seg button { color:#8d929b; }
+.sk-luna .seg button:hover { color:#e8eaee; background:rgba(255,255,255,.04); }
+.sk-luna .seg button[aria-pressed=true] { color:#f3f4f6; font-weight:600; background:rgba(255,255,255,.07); }
+.sk-luna .seg button[aria-pressed=true]::after { content:""; position:absolute; left:30%; right:30%; bottom:4px; height:2px; border-radius:2px;
+  background:var(--lit); box-shadow:var(--glow-s); }
+/* slider = a thin continuous accent line, softly glowing. The fill is a real element (not
+   ::-moz-range-progress / a gradient) so it looks the same in every browser. */
+.sk-luna .rbox { display:block; position:relative; flex:1; min-width:0; height:var(--hit); }
+.sk-luna .rbox::before { content:""; position:absolute; left:0; right:0; top:50%; height:4px; margin-top:-2px; border-radius:99px;
+  background:color-mix(in srgb, var(--fg) 14%, transparent); }
+.sk-luna .rfill { display:block; position:absolute; left:0; top:50%; height:4px; margin-top:-2px; border-radius:99px; pointer-events:none;
+  width:calc(8px + (100% - 16px) * var(--pn, .5)); /* ends under the knob's centre */
+  background:var(--acc); box-shadow:var(--glow-a); }
+.sk-luna .rbox input { position:relative; width:100%; height:100%; display:block; }
+.sk-luna .rng input::-webkit-slider-runnable-track { height:4px; background:transparent; border:0; }
+.sk-luna .rng input::-moz-range-track { height:4px; background:transparent; border:0; box-shadow:none; }
+.sk-luna .rng input::-moz-range-progress { background:transparent; box-shadow:none; }
+.sk-luna .rng input::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; margin-top:-5px; border-radius:50%; border:0;
+  background:var(--acc); box-shadow:var(--glow-a); }
+.sk-luna .rng input::-moz-range-thumb { width:14px; height:14px; border-radius:50%; border:0; background:var(--acc); box-shadow:var(--glow-a); }
+.sk-luna .rng .val { width:auto; }
+/* digits always sit in a small black display window, like the clock face */
+.sk-luna .lcd { display:inline-flex; align-items:center; padding:5px 8px; border-radius:var(--r-s); background:var(--glass);
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.6), 0 0 0 1px var(--line); }
+.sk-luna .rng .val svg { height:18px; width:auto; }
+.sk-luna .b { border-radius:var(--r-m); }
+.sk-luna .b.filled { box-shadow:0 0 10px color-mix(in srgb, var(--acc) 22%, transparent); }
+.sk-luna .b.filled:hover { box-shadow:var(--glow-a); filter:brightness(1.06); }
+.sk-luna .b.icon { border-radius:var(--r-m); }
+/* saving = the slow LED pulse the clock uses while listening */
+.sk-luna .b.busy { animation:pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow:0 0 0 3px color-mix(in srgb, var(--acc) 40%, transparent), 0 0 18px color-mix(in srgb, var(--acc) 35%, transparent); } }
+/* badge = an indicator LED with a label, no box at all */
+.sk-luna .badge { color:var(--dim); letter-spacing:.04em; }
+.sk-luna .badge::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--unlit); }
+.sk-luna .badge.ok::before { background:var(--ok); box-shadow:0 0 6px var(--ok); }
+.sk-luna .badge.bad::before { background:var(--bad); box-shadow:0 0 6px var(--bad); }
+.sk-luna .badge.warn::before { background:var(--warn); box-shadow:0 0 6px var(--warn); }
+.sk-luna .field input, .sk-luna .field select { border-radius:var(--r-m); background:var(--well); box-shadow:inset 0 1px 2px rgba(0,0,0,.3); }
+.sk-luna .field input:focus, .sk-luna .field select:focus { outline:0; border-color:var(--acc); box-shadow:inset 0 1px 2px rgba(0,0,0,.3), var(--glow-a); }
+/* Light themes: the black wells, white LEDs and black display windows only work on a dark
+   page, so here Luna falls back to the theme: soft grey slots, accent for "lit", digits in
+   the text colour without a window, no glow. Same shapes and behaviour. */
+body.light .sk-luna { --lit:var(--acc); --glow-s:none; --well:color-mix(in srgb, var(--fg) 7%, var(--card));
+  --unlit:color-mix(in srgb, var(--fg) 22%, var(--card)); }
+body.light .sk-luna .sw { box-shadow:inset 0 1px 2px rgba(0,0,0,.10); }
+body.light .sk-luna .sw::after { box-shadow:0 1px 1px rgba(0,0,0,.15); }
+body.light .sk-luna .sw[aria-checked=true] { border-color:color-mix(in srgb, var(--acc) 50%, var(--line)); background:color-mix(in srgb, var(--acc) 14%, var(--card)); }
+body.light .sk-luna .seg { box-shadow:inset 0 1px 2px rgba(0,0,0,.08); }
+body.light .sk-luna .seg button { color:var(--dim); }
+body.light .sk-luna .seg button:hover { color:var(--fg); background:color-mix(in srgb, var(--fg) 5%, transparent); }
+body.light .sk-luna .seg button[aria-pressed=true] { color:var(--fg); background:var(--card); }
+body.light .sk-luna .chip::before { outline:0; }
+body.light .sk-luna .chip[aria-pressed=true] { border-color:color-mix(in srgb, var(--acc) 45%, var(--line)); background:color-mix(in srgb, var(--acc) 7%, var(--card)); }
+body.light .sk-luna .lcd { padding:0; background:none; box-shadow:none; }
+body.light .sk-luna .s7 .on { fill:var(--fg); filter:none; }
+body.light .sk-luna .s7 .off { fill:var(--fg); opacity:.07; }
+body.light .sk-luna .b.busy { animation:none; opacity:.7; }
+
+/* status alternatives (gallery picker) */
+/* LED: lit white = fine, hollow = off/neutral, slow white blink = needs a look, red only for real errors */
+body.st-mono .sk-luna .badge::before { background:transparent; box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--fg) 40%, transparent); }
+body.st-mono .sk-luna .badge.ok::before { background:var(--lit); box-shadow:var(--glow-s); }
+body.st-mono .sk-luna .badge.warn::before { background:var(--lit); box-shadow:var(--glow-s); animation:blink 1.6s ease-in-out infinite; }
+body.st-mono .sk-luna .badge.bad::before { background:var(--bad); box-shadow:0 0 6px color-mix(in srgb, var(--bad) 70%, transparent); }
+body.st-mono .sk-luna .badge.bad { color:var(--fg); }
+body.light.st-mono .sk-luna .badge.ok::before, body.light.st-mono .sk-luna .badge.warn::before { background:var(--acc); box-shadow:none; }
+@keyframes blink { 50% { opacity:.2; } }
+/* muted: the same three meanings, pulled most of the way toward the theme's grey */
+body.st-muted .sk-luna .badge::before { box-shadow:none !important; }
+body.st-muted .sk-luna .badge.ok::before { background:color-mix(in srgb, var(--ok) 45%, var(--dim)); }
+body.st-muted .sk-luna .badge.bad::before { background:color-mix(in srgb, var(--bad) 60%, var(--dim)); }
+body.st-muted .sk-luna .badge.warn::before { background:color-mix(in srgb, var(--warn) 45%, var(--dim)); }
+/* the device surface: fabric only where something IS the clock */
+.sk-luna .face { position:relative; isolation:isolate; background:color-mix(in srgb, var(--card) 93%, var(--fg)); }
+.sk-luna .face::before { content:""; position:absolute; inset:0; border-radius:inherit; z-index:-1; opacity:.10; pointer-events:none;
+  background:repeating-linear-gradient(45deg, color-mix(in srgb, var(--fg) 55%, transparent) 0 1px, transparent 1px 4px),
+             repeating-linear-gradient(-45deg, color-mix(in srgb, var(--fg) 35%, transparent) 0 1px, transparent 1px 4px); }
+.sk-luna .face .tm { padding:14px 18px; border-radius:var(--r-m); }
+.sk-luna .face .tm svg { height:52px; width:auto; }
+.sk-luna .face .fd { margin-top:6px; }
+.sk-luna .tile:hover { border-color:color-mix(in srgb, var(--acc) 45%, var(--line)); box-shadow:0 0 12px color-mix(in srgb, var(--acc) 12%, transparent); }
+.sk-luna .tile .tv svg { height:20px; width:auto; }
+.sk-luna .brand { display:flex; align-items:center; gap:6px; margin-bottom:8px; font-size:var(--t-xs); font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); }
+
+
+/* ===================== Radix skin =====================
+   Radix Themes conventions, approximated from the theme colours: 12-step alpha scales
+   (a3 soft fill, a4 hover, a7 border, 9 solid, 11 text), radius 3/4/6/8 px, 32 px
+   controls at 14 px, medium weights, hairline inset borders, white switch thumb,
+   sliding segmented indicator. */
+.sk-radix { font-size:14px;
+  --rx-a2:color-mix(in srgb, var(--acc) 6%, transparent); --rx-a3:color-mix(in srgb, var(--acc) 12%, transparent);
+  --rx-a4:color-mix(in srgb, var(--acc) 18%, transparent); --rx-a7:color-mix(in srgb, var(--acc) 45%, transparent);
+  --rx-11:color-mix(in srgb, var(--acc) 78%, var(--fg));
+  --gx-a3:color-mix(in srgb, var(--fg) 6%, transparent); --gx-a4:color-mix(in srgb, var(--fg) 9%, transparent);
+  --gx-a5:color-mix(in srgb, var(--fg) 12%, transparent); --gx-a6:color-mix(in srgb, var(--fg) 15%, transparent);
+  --gx-a7:color-mix(in srgb, var(--fg) 22%, transparent);
+  --rd-a3:color-mix(in srgb, var(--bad) 12%, transparent); --rd-a4:color-mix(in srgb, var(--bad) 18%, transparent);
+  --rr1:3px; --rr2:4px; --rr3:6px; --rr4:8px;
+  --ind:color-mix(in srgb, var(--card) 86%, var(--fg)); }
+body.light .sk-radix { --ind:color-mix(in srgb, var(--card) 70%, #fff); }
+.sk-radix .card, .sk-radix .tile { border:0; border-radius:var(--rr4); box-shadow:inset 0 0 0 1px var(--gx-a5); }
+.sk-radix .card > h2 { font-size:18px; font-weight:700; letter-spacing:-.01em; }
+.sk-radix .card > .lead, .sk-radix .set .desc { font-size:13px; }
+.sk-radix .set { min-height:52px; border-top-color:var(--gx-a5); }
+.sk-radix .set .ttl { font-weight:500; }
+.sk-radix .sec { font-size:12px; font-weight:500; letter-spacing:0; text-transform:none; }
+.sk-radix .sw { width:42px; height:24px; border-radius:var(--r-full); background:var(--gx-a5); box-shadow:inset 0 0 0 1px var(--gx-a3), inset 0 1.5px 2px var(--gx-a3); }
+.sk-radix .sw::after { left:2px; top:2px; width:20px; height:20px; border-radius:50%; background:#fff;
+  box-shadow:0 0 0 1px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.18); }
+.sk-radix .sw[aria-checked=true] { background:var(--acc); box-shadow:inset 0 0 0 1px var(--gx-a3); }
+.sk-radix .sw[aria-checked=true]::after { transform:translateX(18px); }
+.sk-radix .seg { position:relative; border:0; padding:2px; border-radius:var(--rr3); background:var(--gx-a3); box-shadow:inset 0 0 0 1px var(--gx-a3); }
+.sk-radix .seg button { position:relative; z-index:1; border:0; min-height:28px; color:var(--fg); font-size:14px; background:transparent !important; }
+.sk-radix .seg button[aria-pressed=true] { font-weight:500; }
+.sk-radix .seg .ind { display:block; position:absolute; top:2px; bottom:2px; border-radius:var(--rr2);
+  left:calc(2px + (100% - 4px) * var(--i, 0) / var(--n, 1)); width:calc((100% - 4px) / var(--n, 1));
+  background:var(--ind); box-shadow:0 0 0 1px var(--gx-a4), 0 1px 2px rgba(0,0,0,.12); transition:left .2s cubic-bezier(.4,0,.2,1); }
+.sk-radix .rng input::-webkit-slider-runnable-track { height:6px; border-radius:99px; box-shadow:inset 0 0 0 1px var(--gx-a3);
+  background:linear-gradient(90deg, var(--acc) var(--p), var(--gx-a4) var(--p)); }
+.sk-radix .rng input::-moz-range-track { height:6px; border-radius:99px; background:linear-gradient(90deg, var(--acc) var(--p), var(--gx-a4) var(--p)); }
+.sk-radix .rng input::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; margin-top:-5px; border-radius:50%; background:#fff; border:0;
+  box-shadow:0 0 0 1px var(--gx-a6), 0 1px 3px rgba(0,0,0,.2); }
+.sk-radix .rng input::-moz-range-thumb { width:16px; height:16px; border-radius:50%; background:#fff; border:0; box-shadow:0 0 0 1px var(--gx-a6), 0 1px 3px rgba(0,0,0,.2); }
+.sk-radix .rng .rl { font-size:13px; }
+.sk-radix .b { min-height:32px; padding:0 12px; border-radius:var(--rr3); font-size:14px; font-weight:500; }
+.sk-radix .b.filled:hover { filter:brightness(.93); }
+.sk-radix .b.tonal { background:var(--rx-a3); color:var(--rx-11); }
+.sk-radix .b.tonal:hover { background:var(--rx-a4); }
+.sk-radix .b.text { color:var(--rx-11); padding:0 8px; }
+.sk-radix .b.text:hover { background:var(--rx-a3); }
+.sk-radix .b.danger { background:var(--rd-a3); color:var(--bad); }
+.sk-radix .b.danger:hover { background:var(--rd-a4); }
+.sk-radix .b.icon { width:32px; padding:0; color:var(--dim); }
+.sk-radix .b.icon:hover { background:var(--gx-a3); color:var(--bad); }
+.sk-radix .b.busy { position:relative; color:transparent !important; pointer-events:none; }
+.sk-radix .b.busy::after { content:""; position:absolute; left:50%; top:50%; width:14px; height:14px; margin:-7px; border-radius:50%;
+  border:2px solid var(--accfg); border-right-color:transparent; animation:spin .7s linear infinite; }
+.sk-radix .badge { height:20px; padding:0 6px; border-radius:var(--rr1); font-weight:500; background:var(--gx-a3); color:var(--dim); }
+.sk-radix .badge.ok { background:color-mix(in srgb, var(--ok) 13%, transparent); color:var(--ok); }
+.sk-radix .badge.bad { background:color-mix(in srgb, var(--bad) 13%, transparent); color:var(--bad); }
+.sk-radix .badge.warn { background:color-mix(in srgb, var(--warn) 15%, transparent); color:var(--warn); }
+.sk-radix .field label { font-size:13px; font-weight:500; color:var(--fg); }
+.sk-radix .field input, .sk-radix .field select { min-height:32px; border:0; border-radius:var(--rr2); background:var(--input); box-shadow:inset 0 0 0 1px var(--gx-a7); }
+.sk-radix .field input:focus, .sk-radix .field select:focus { outline:2px solid var(--rx-a7); outline-offset:-1px; }
+.sk-radix .qbtn { border:0; background:var(--gx-a3); }
+.sk-radix .help { border-radius:var(--rr3); background:var(--gx-a3); }
+.sk-radix .face .tm { font-size:56px; font-weight:700; letter-spacing:-.04em; line-height:1; font-variant-numeric:tabular-nums; }
+.seg .ind { display:none; }
+
+/* chips (restored; gallery picker: chips vs switch rows for multi-option groups) */
+/* chips: <button aria-pressed> */
+.chips { display:flex; flex-wrap:wrap; gap:var(--sp-2); padding:var(--sp-2) 0; }
+.chip { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:0 14px; cursor:pointer; font-size:var(--t-s);
+  border:1px solid var(--line); background:transparent; color:var(--fg); transition:background .15s, border-color .15s, color .15s; }
+.chip:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+.sk-std .chip { border-radius:var(--r-s); }
+.sk-std .chip::before { content:""; width:0; height:14px; overflow:hidden; transition:width .15s; }
+.sk-std .chip[aria-pressed=true] { background:color-mix(in srgb, var(--acc) 18%, var(--card)); border-color:transparent; }
+.sk-std .chip[aria-pressed=true]::before { content:"✓"; width:14px; font-weight:700; color:var(--acc); }
+/* chip = a key with a status LED */
+.sk-luna .chip { border-radius:var(--r-m); }
+.sk-luna .chip::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--unlit); outline:2px solid var(--well); transition:background .15s, box-shadow .15s; }
+.sk-luna .chip[aria-pressed=true] { border-color:color-mix(in srgb, var(--fg) 35%, var(--line)); background:color-mix(in srgb, var(--fg) 5%, var(--card)); }
+.sk-luna .chip[aria-pressed=true]::before { background:var(--lit); box-shadow:var(--glow-s); }
+.sk-radix .chip { min-height:32px; padding:0 12px 0 10px; gap:8px; border:0; border-radius:var(--rr3); font-weight:500; font-size:14px;
+  box-shadow:inset 0 0 0 1px var(--gx-a7); }
+.sk-radix .chip:hover { background:var(--gx-a3); }
+.sk-radix .chip::before { content:""; display:grid; place-items:center; width:16px; height:16px; border-radius:var(--rr1);
+  box-shadow:inset 0 0 0 1px var(--gx-a7); font-size:11px; font-weight:700; line-height:1; color:var(--accfg); }
+.sk-radix .chip[aria-pressed=true] { background:var(--rx-a2); box-shadow:inset 0 0 0 1px var(--rx-a7); }
+.sk-radix .chip[aria-pressed=true]::before { content:"✓"; background:var(--acc); box-shadow:none; }
+body.multi-rows .opt-chips, body:not(.multi-rows) .opt-rows { display:none; }
+
+/* ===================== dashboard (tiles + rings) ===================== */
+.dash-h { margin:var(--sp-2) 2px 0; font-size:var(--t-xs); font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); }
+.dtiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(178px, 1fr)); gap:10px; }
+.dtile { display:flex; align-items:center; gap:12px; min-width:0; padding:12px 14px; background:var(--card); border:1px solid var(--line); border-radius:var(--r-m); }
+.dtile .dic { display:grid; place-items:center; width:38px; height:38px; flex:0 0 auto; border-radius:10px; }
+.dtile .dic .ic { width:20px; height:20px; }
+.dtile .dtx { min-width:0; flex:1; }
+.dtile .dn { display:flex; align-items:center; gap:7px; font-weight:600; }
+.dtile .dsub { color:var(--dim); font-size:var(--t-s); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dtile .gv { font-size:20px; font-weight:600; line-height:1.1; }
+.led { display:inline-block; width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(--dim); }
+.led.ok { background:var(--ok); } .led.warn { background:var(--warn); } .led.bad { background:var(--bad); } .led.off { background:var(--line); }
+/* Material / Radix: today's look (tinted icon squares, continuous ring) for comparison */
+.dtile .dic { background:var(--line); color:var(--dim); }
+.dtile .dic.ok { color:var(--ok); background:color-mix(in srgb, var(--ok) 14%, var(--card)); }
+.dtile .dic.warn { color:var(--warn); background:color-mix(in srgb, var(--warn) 14%, var(--card)); }
+.dtile .dic.bad { color:var(--bad); background:color-mix(in srgb, var(--bad) 14%, var(--card)); }
+.ring { width:46px; height:46px; flex:0 0 auto; }
+.ring .trk { fill:none; stroke:var(--line); stroke-width:3.4; }
+.ring .val { fill:none; stroke:var(--ok); stroke-width:3.4; stroke-linecap:round; }
+.ring.warn .val { stroke:var(--warn); } .ring.bad .val { stroke:var(--bad); }
+.sk-radix .dtile { border:0; border-radius:var(--rr4); box-shadow:inset 0 0 0 1px var(--gx-a5); }
+.sk-radix .dtile .dic { border-radius:var(--rr3); }
+
+/* Luna: no tinted squares; icons sit in a dark well, status is one LED per tile.
+   Rings become a dial of 20 LED ticks: lit white = the value, the head tick blinks when
+   the value is high, the lit ticks turn red at the error level. Value in digits. */
+.sk-luna .dtile { border-radius:var(--r-l); }
+.sk-luna .dtile .dic, .sk-luna .dtile .dic.ok, .sk-luna .dtile .dic.warn, .sk-luna .dtile .dic.bad {
+  background:var(--well); color:color-mix(in srgb, var(--fg) 75%, transparent); border-radius:var(--r-m); box-shadow:inset 0 1px 2px rgba(0,0,0,.4); }
+.sk-luna .dtile.bad { border-color:color-mix(in srgb, var(--bad) 40%, var(--line)); }
+.sk-luna .dtile.bad .dsub { color:color-mix(in srgb, var(--bad) 70%, var(--fg)); }
+.sk-luna .dtile .dn .led { margin-left:auto; }
+.sk-luna .dial { width:48px; height:48px; flex:0 0 auto; }
+.sk-luna .dial rect { fill:var(--unlit); }
+.sk-luna .dial rect.on { fill:var(--lit); filter:drop-shadow(0 0 2px rgba(255,255,255,.7)); }
+.sk-luna .dial.bad rect.on { fill:var(--bad); filter:drop-shadow(0 0 2px color-mix(in srgb, var(--bad) 80%, transparent)); }
+.sk-luna .dial rect.head { animation:blink 1.6s ease-in-out infinite; }
+.sk-luna .dval { display:flex; align-items:baseline; gap:4px; }
+.sk-luna .dval .lcd svg { height:18px; width:auto; }
+.sk-luna .dval small { color:var(--dim); font-size:var(--t-s); }
+body.light .sk-luna .dtile .dic { box-shadow:none; color:var(--dim); }
+body.light .sk-luna .dial rect.on { filter:none; }
+/* tile LEDs follow the status style picker */
+body.st-mono .sk-luna .led { background:transparent; box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--fg) 40%, transparent); }
+body.st-mono .sk-luna .led.ok { background:var(--lit); box-shadow:var(--glow-s); }
+body.st-mono .sk-luna .led.warn { background:var(--lit); box-shadow:var(--glow-s); animation:blink 1.6s ease-in-out infinite; }
+body.st-mono .sk-luna .led.bad { background:var(--bad); }
+
+/* error = emergency: a fast red double flash with an expanding halo, every 1.2 s */
+body.st-mono .sk-luna .led.bad, body.st-mono .sk-luna .badge.bad::before { animation:sos 1.2s linear infinite; }
+@keyframes sos {
+  0%   { opacity:1; box-shadow:0 0 0 0 color-mix(in srgb, var(--bad) 70%, transparent), 0 0 8px var(--bad); }
+  10%  { opacity:.15; }
+  18%  { opacity:1; box-shadow:0 0 0 0 color-mix(in srgb, var(--bad) 70%, transparent), 0 0 8px var(--bad); }
+  28%  { opacity:.15; }
+  45%  { opacity:1; box-shadow:0 0 0 7px transparent, 0 0 4px color-mix(in srgb, var(--bad) 60%, transparent); }
+  100% { opacity:1; box-shadow:0 0 0 7px transparent, 0 0 4px color-mix(in srgb, var(--bad) 60%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk-luna .led, .sk-luna .badge::before, .sk-luna .dial rect, .sk-luna .b.busy { animation:none !important; }
+}
+
+/* seven-segment digits (shared renderer, Luna only) */
+.s7 .on { fill:var(--lit); filter:drop-shadow(0 0 2px rgba(255,255,255,.7)) drop-shadow(0 0 6px rgba(255,255,255,.3)); }
+.s7 .off { fill:#fff; opacity:.06; }
+
+@media (max-width: 900px) { .stage, body.phone .stage { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>clockd UI gallery</h1>
+  <label>Theme <select id="theme"></select></label>
+  <label>Left <select id="left"></select></label>
+  <label>Right <select id="right"></select></label>
+  <label>Luna light <select id="lit"><option value="white">White (clock face)</option><option value="acc">Theme accent</option></select></label>
+  <label>Options <select id="multi"><option value="chips">Chips</option><option value="rows">Switch rows</option></select></label>
+  <label>Status <select id="stat"><option value="mono">LED (white, red only for errors)</option><option value="tl">Traffic lights</option><option value="muted">Muted colours</option></select></label>
+  <label>View <select id="view"><option value="desk">Desktop</option><option value="phone">Phone (390 px)</option></select></label>
+</div>
+<p class="note">Same markup and behaviour in every skin (switch = a single setting, chips = a group of options to pick several,
+segmented = pick one of a few, badge = read-only, button weight by importance). Only the skin differs. Everything is clickable.</p>
+<div class="stage"><div id="colL"></div><div id="colR"></div></div>
+
+<script>
+const THEMES = {
+  dark:       {label: 'Dark',            bg: '#14161a', card: '#1d2026', line: '#2c3038', fg: '#e6e8eb', dim: '#8b919c', acc: '#4f9dff', accfg: '#ffffff', ok: '#3ecf8e', bad: '#ff6b6b', warn: '#ffc857', input: '#111317'},
+  light:      {label: 'Light',           bg: '#f4f5f7', card: '#ffffff', line: '#dde1e6', fg: '#1d2026', dim: '#5f6670', acc: '#1f6feb', accfg: '#ffffff', ok: '#1a7f37', bad: '#cf222e', warn: '#9a6700', input: '#f8f9fa'},
+  nord:       {label: 'Nord',            bg: '#2e3440', card: '#3b4252', line: '#4c566a', fg: '#eceff4', dim: '#aeb6c4', acc: '#88c0d0', accfg: '#2e3440', ok: '#a3be8c', bad: '#bf616a', warn: '#ebcb8b', input: '#2e3440'},
+  dracula:    {label: 'Dracula',         bg: '#282a36', card: '#343746', line: '#44475a', fg: '#f8f8f2', dim: '#a9adc8', acc: '#bd93f9', accfg: '#282a36', ok: '#50fa7b', bad: '#ff5555', warn: '#f1fa8c', input: '#21222c'},
+  sol_dark:   {label: 'Solarized dark',  bg: '#002b36', card: '#073642', line: '#164b57', fg: '#eee8d5', dim: '#93a1a1', acc: '#268bd2', accfg: '#ffffff', ok: '#859900', bad: '#dc322f', warn: '#b58900', input: '#002b36'},
+  sol_light:  {label: 'Solarized light', bg: '#fdf6e3', card: '#eee8d5', line: '#d6cfb8', fg: '#073642', dim: '#586e75', acc: '#268bd2', accfg: '#ffffff', ok: '#5f7000', bad: '#dc322f', warn: '#8a6a00', input: '#fdf6e3'},
+  gruvbox:    {label: 'Gruvbox',         bg: '#282828', card: '#32302f', line: '#504945', fg: '#ebdbb2', dim: '#a89984', acc: '#83a598', accfg: '#282828', ok: '#b8bb26', bad: '#fb4934', warn: '#fabd2f', input: '#1d2021'},
+  mocha:      {label: 'Catppuccin Mocha', bg: '#1e1e2e', card: '#313244', line: '#45475a', fg: '#cdd6f4', dim: '#a6adc8', acc: '#89b4fa', accfg: '#1e1e2e', ok: '#a6e3a1', bad: '#f38ba8', warn: '#f9e2af', input: '#181825'},
+  gruv_light: {label: 'Gruvbox light',   bg: '#fbf1c7', card: '#f2e5bc', line: '#d5c4a1', fg: '#3c3836', dim: '#7c6f64', acc: '#af3a03', accfg: '#fbf1c7', ok: '#79740e', bad: '#9d0006', warn: '#b57614', input: '#f9f5d7'},
+  rose_pine:  {label: 'Rosé Pine',       bg: '#191724', card: '#1f1d2e', line: '#403d52', fg: '#e0def4', dim: '#908caa', acc: '#ebbcba', accfg: '#191724', ok: '#9ccfd8', bad: '#eb6f92', warn: '#f6c177', input: '#26233a'},
+  rose_dawn:  {label: 'Rosé Pine Dawn',  bg: '#faf4ed', card: '#fffaf3', line: '#dfdad9', fg: '#575279', dim: '#797593', acc: '#d7827e', accfg: '#ffffff', ok: '#286983', bad: '#b4637a', warn: '#ea9d34', input: '#f2e9e1'},
+  sepia:      {label: 'Sepia',           bg: '#f4ecd8', card: '#fbf5e6', line: '#e0d3b8', fg: '#433422', dim: '#7a6650', acc: '#a0522d', accfg: '#ffffff', ok: '#5b7a2e', bad: '#b8213f', warn: '#a86b12', input: '#fffaf0'},
+  ember:      {label: 'Ember',           bg: '#1a1410', card: '#241b15', line: '#3b2c22', fg: '#f1e3d3', dim: '#b09a86', acc: '#ff8c42', accfg: '#1a1410', ok: '#a7c957', bad: '#ef5b5b', warn: '#ffc857', input: '#15100c'},
+  term_green: {label: 'Terminal green',  bg: '#040804', card: '#081108', line: '#173a17', fg: '#39ff6a', dim: '#22a845', acc: '#39ff6a', accfg: '#031003', ok: '#39ff6a', bad: '#ff5f56', warn: '#d7ff3a', input: '#020502', font: 'ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace', glow: '0 0 6px rgba(57,255,106,.35)'},
+  term_amber: {label: 'Terminal amber',  bg: '#0a0700', card: '#130d02', line: '#3a2806', fg: '#ffb000', dim: '#b77d00', acc: '#ffb000', accfg: '#130d02', ok: '#ffcc4d', bad: '#ff5a36', warn: '#ffd27a', input: '#060400', font: 'ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace', glow: '0 0 6px rgba(255,176,0,.35)'},
+  latte:      {label: 'Catppuccin Latte', bg: '#eff1f5', card: '#e6e9ef', line: '#ccd0da', fg: '#4c4f69', dim: '#6c6f85', acc: '#1e66f5', accfg: '#ffffff', ok: '#40a02b', bad: '#d20f39', warn: '#c26d0c', input: '#eff1f5'},
+};
+function applyTheme(n) {
+  const t = THEMES[n] || THEMES.dark, r = document.documentElement.style;
+  for (const [k, v] of Object.entries(t)) if (!['label', 'font', 'glow'].includes(k)) r.setProperty('--' + k, v);
+  r.setProperty('--font', t.font || 'system-ui, sans-serif');
+  r.setProperty('--glow', t.glow || 'none');
+  const LIGHT = ['light', 'sol_light', 'gruv_light', 'rose_dawn', 'sepia', 'latte'];
+  document.body.classList.toggle('light', LIGHT.includes(n));
+  document.body.classList.add('notrans');
+  requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove('notrans')));
+  localStorage.setItem('gallery-theme', n);
+}
+
+/* seven-segment renderer: digits, ':' and ' ' */
+const SEG = ['abcdef','bc','abged','abgcd','fgbc','afgcd','afgedc','abc','abcdefg','abcdfg'];
+const H = cy => `2,${cy} 3.3,${cy-1.3} 10.7,${cy-1.3} 12,${cy} 10.7,${cy+1.3} 3.3,${cy+1.3}`;
+const V = (cx, y0, y1) => `${cx},${y0} ${cx+1.3},${y0+1.3} ${cx+1.3},${y1-1.3} ${cx},${y1} ${cx-1.3},${y1-1.3} ${cx-1.3},${y0+1.3}`;
+const SHAPE = {a:H(1.4), g:H(12), d:H(22.6), f:V(1.4,2,11.6), b:V(12.6,2,11.6), e:V(1.4,12.4,22), c:V(12.6,12.4,22)};
+function seg7(text) {
+  let x = 0, out = '';
+  for (const ch of String(text)) {
+    if (ch === ':') { out += `<circle class="on" cx="${x+2.5}" cy="7.5" r="1.5"/><circle class="on" cx="${x+2.5}" cy="16.5" r="1.5"/>`; x += 6; continue; }
+    if (ch === '%') { out += `<text class="on" x="${x+1}" y="22" font-size="11" font-family="system-ui">%</text>`; x += 12; continue; }
+    const on = ch === ' ' ? '' : SEG[+ch] || '';
+    out += `<g transform="translate(${x} 0)">` + Object.entries(SHAPE).map(([s, p]) =>
+      `<polygon class="${on.includes(s) ? 'on' : 'off'}" points="${p}"/>`).join('') + '</g>';
+    x += 16;
+  }
+  return `<svg class="s7" viewBox="-1 0 ${x+1} 24" aria-label="${text}">${out}</svg>`;
+}
+
+const IC = {
+  trash: '<svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
+  play:  '<svg class="ic" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg>',
+  moon:  '<svg class="ic" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+  home:  '<svg class="ic" viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
+  wave:  '<svg class="ic" viewBox="0 0 24 24"><path d="M2 12h3M7 7v10M11 4v16M15 8v8M19 10v4M22 12h0"/></svg>',
+  music: '<svg class="ic" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+  clock: '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  wifi:  '<svg class="ic" viewBox="0 0 24 24"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.6a10 10 0 0 1 14 0M8.5 16.3a5 5 0 0 1 7 0M12 20h0"/></svg>',
+  sun:   '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  pulse: '<svg class="ic" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+};
+const sw = (on) => `<button class="sw" role="switch" aria-checked="${on}" aria-label="toggle"></button>`;
+const row = (title, desc, on, opts = {}) => `<div class="set${on ? '' : ' off'}">
+  <div class="txt"><div class="ttl">${title}${opts.badge || ''}${opts.help ? ' <button class="qbtn" aria-label="More">?</button>' : ''}</div>
+  <div class="desc">${desc}</div>${opts.help ? `<div class="help">${opts.help}</div>` : ''}</div>${sw(on)}</div>`;
+
+const SKINS = {
+  std:   {name: 'Material', sub: 'Material 3 look: pill buttons, tonal fills, roomy 36-40 px controls.'},
+  radix: {name: 'Radix', sub: 'Radix Themes look: compact 32 px controls, alpha-scale soft fills, hairline borders, white switch thumb, sliding segmented indicator.'},
+  luna:  {name: 'Luna', sub: "Dark themes: the clock's white lights, black windows and slots. Light themes: the same shapes in theme colours. Accent with a soft glow for controls."},
+};
+/* today's continuous ring (Material/Radix columns) */
+const ring = (f, st) => `<svg class="ring ${st}" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="19"/>
+  <circle class="val" cx="23" cy="23" r="19" stroke-dasharray="${(f * 119.4).toFixed(1)} 200" transform="rotate(-90 23 23)"/></svg>`;
+/* Luna: a dial of 20 LED ticks; warn = the head tick blinks, bad = lit ticks red */
+const dial = (f, st) => {
+  const n = 20, lit = Math.round(f * n);
+  let t = '';
+  for (let i = 0; i < n; i++) {
+    const cls = i < lit ? 'on' + (st === 'warn' && i === lit - 1 ? ' head' : '') : '';
+    t += `<rect class="${cls}" x="22.6" y="3" width="2.8" height="7" rx="1.4" transform="rotate(${i * 360 / n} 24 24)"/>`;
+  }
+  return `<svg class="dial ${st}" viewBox="0 0 48 48">${t}</svg>`;
+};
+function render(el, skin) {
+  const luna = skin === 'luna';
+  const lcd = v => `<span class="lcd">${seg7(v)}</span>`;
+  el.innerHTML = `
+  <div class="card">
+    <h2>Voice</h2><p class="lead">Wake word, stop word and the microphone.</p>
+    ${row('Wake sound', 'Chime after the wake word', true)}
+    ${row('Stop word', 'Say "stop" to end a timer or the music', true)}
+    ${row('Mute microphone', 'The clock stops listening until unmuted', false)}
+    ${row('Two-mic echo null', 'Cancel the speaker with both microphones while playing', false,
+      {badge: ' <span class="badge">experimental</span>',
+       help: 'Runs before the echo canceller. It learns the speaker by itself from the first minutes of music.'})}
+    <div class="sec">Echo canceller</div>
+    <div class="segc"><div class="seg"><span class="ind"></span><button aria-pressed="false">Original</button><button aria-pressed="true">WebRTC</button><button aria-pressed="false">Local</button></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Clock face</h2><p class="lead">What the display shows.</p>
+    <div class="chips opt-chips">
+      <button class="chip" aria-pressed="true">Clock face</button><button class="chip" aria-pressed="true">24-hour</button>
+      <button class="chip" aria-pressed="false">Blinking colon</button><button class="chip" aria-pressed="true">Eyes</button>
+    </div>
+    <div class="opt-rows">
+    ${row('Clock face', 'Time on the display', true)}
+    ${row('24-hour', '22:58 instead of 10:58', true)}
+    ${row('Blinking colon', 'The colon blinks every second', false)}
+    ${row('Eyes', 'Animated eyes while listening and thinking', true)}
+    </div>
+    <div class="rng"><span class="rl">Brightness</span><span class="rbox"><i class="rfill"></i><input type="range" min="1" max="16" value="4" data-fmt="n"></span><span class="val"></span></div>
+    ${row('Follow the light sensor', 'Dim with the room', true)}
+  </div>
+
+  <div class="card">
+    <h2>Volume</h2>
+    <div class="rng"><span class="rl">Volume</span><span class="rbox"><i class="rfill"></i><input type="range" min="0" max="100" value="38" data-fmt="pct"></span><span class="val"></span></div>
+    ${row('Shush', 'Duck the music while a hand approaches', false)}
+  </div>
+
+  <div class="card">
+    <h2>Status</h2><p class="lead">Read-only: these never look clickable.</p>
+    <div class="badges"><span class="badge ok">connected</span><span class="badge bad">not connected</span><span class="badge ok">in use</span>
+      <span class="badge">saved</span><span class="badge warn">near miss</span><span class="badge">playing</span></div>
+    <div class="tile"><div><div class="tn">Temperature</div><div class="ts">processor</div></div><div class="tv">${luna ? lcd('46') : '<b style="font-size:20px">46 °C</b>'}</div></div>
+  </div>
+
+  <div class="dash-h">Dashboard: services</div>
+  <div class="dtiles">${[
+      ['home', 'Home Assistant', 'Connected · 1h 3m', 'ok'],
+      ['wave', 'Voice', 'Hey Glados, Okay Nabu', 'ok'],
+      ['music', 'Music Assistant', 'Not connected · retrying', 'bad'],
+      ['clock', 'Time', 'From Home Assistant', 'ok'],
+      ['moon', 'Weather', 'Clear, 6 °C · 2 h old', 'warn'],
+      ['wifi', 'Wi-Fi', 'home-net · -64 dBm', 'ok'],
+      ['sun', 'Room', 'Light 0 % · display 4/16', 'off'],
+    ].map(([ic, n, sub, st]) => `<div class="dtile ${st}"><div class="dic ${st}">${IC[ic]}</div>
+      <div class="dtx"><div class="dn">${n}<span class="led ${st}"></span></div><div class="dsub">${sub}</div></div></div>`).join('')}</div>
+  <div class="dash-h">Dashboard: device</div>
+  <div class="dtiles">${[
+      ['Temperature', 'processor', 46, '°C', 0.46, ''],
+      ['Load', '1.73 1.41 1.38', 43, '%', 0.43, ''],
+      ['Memory', '72 MB free', 86, '%', 0.86, 'warn'],
+      ['Storage', '/data', 99, '%', 0.99, 'bad'],
+    ].map(([n, sub, v, unit, f, st]) => `<div class="dtile"><div>${luna ? dial(f, st) : ring(f, st)}</div>
+      <div class="dtx">${luna ? `<div class="dval"><span class="lcd">${seg7(String(v))}</span><small>${unit}</small></div>` : `<div class="gv">${v} ${unit}</div>`}
+      <div class="dsub">${n} · ${sub}</div></div></div>`).join('')}</div>
+
+  <div class="card">
+    <h2>Buttons</h2><p class="lead">Weight by importance: one filled per card at most.</p>
+    <div class="btns">
+      <button class="b filled" data-busy>Save</button><button class="b tonal">${IC.play} Test sound</button>
+      <button class="b text">Cancel</button><button class="b danger">Restart clock</button>
+      <button class="b icon" aria-label="Delete">${IC.trash}</button>
+    </div>
+    <div class="field"><label>Weather entity</label><select><option>weather.forecast_home</option><option>weather.openweathermap</option></select></div>
+    <div class="field"><label>Long-lived access token</label><input type="password" value="xxxxxxxxxxxxxxxx"></div>
+  </div>
+
+  <div class="card face">
+    <div>${luna ? `<div class="brand">${IC.moon} Luna</div>` : ''}<div class="tm${luna ? ' lcd' : ''}">${luna ? seg7('22:58') : '22:58'}</div><div class="fd">Saturday, November 7</div></div>
+    <div class="fd">Device preview${luna ? ' (fabric = the clock itself)' : ''}</div>
+  </div>`;
+
+  /* behaviour (identical for both skins) */
+  el.querySelectorAll('.sw').forEach(b => b.onclick = () => {
+    const on = b.getAttribute('aria-checked') !== 'true';
+    b.setAttribute('aria-checked', on); b.closest('.set')?.classList.toggle('off', !on);
+  });
+  el.querySelectorAll('.seg').forEach(g => {
+    const bs = [...g.querySelectorAll('button')];
+    const mark = b => { bs.forEach(x => x.setAttribute('aria-pressed', x === b)); g.style.setProperty('--i', bs.indexOf(b)); };
+    g.style.setProperty('--n', bs.length);
+    mark(bs.find(b => b.getAttribute('aria-pressed') === 'true') || bs[0]);
+    bs.forEach(b => b.onclick = () => mark(b));
+  });
+  el.querySelectorAll('.chip').forEach(b => b.onclick = () => b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'));
+  el.querySelectorAll('.qbtn').forEach(b => b.onclick = () => b.closest('.set').classList.toggle('helpopen'));
+  el.querySelectorAll('.rng input').forEach(r => {
+    const upd = () => {
+      const p = (r.value - r.min) / (r.max - r.min) * 100; r.style.setProperty('--p', p + '%'); r.parentElement.style.setProperty('--pn', p / 100);
+      const v = r.dataset.fmt === 'pct' ? r.value + '%' : `${r.value}/16`;
+      r.parentElement.nextElementSibling.innerHTML = luna ? lcd(r.dataset.fmt === 'pct' ? r.value.padStart(3, ' ') : r.value.padStart(2, ' ')) : v;
+    };
+    r.oninput = upd; upd();
+  });
+  el.querySelectorAll('[data-busy]').forEach(b => b.onclick = () => {
+    b.classList.add('busy'); b.textContent = 'Saving…';
+    setTimeout(() => { b.classList.remove('busy'); b.textContent = 'Save'; }, 2400);
+  });
+}
+
+const sel = document.getElementById('theme');
+sel.innerHTML = Object.entries(THEMES).map(([k, t]) => `<option value="${k}">${t.label}</option>`).join('');
+sel.value = localStorage.getItem('gallery-theme') || 'dark';
+sel.onchange = () => applyTheme(sel.value);
+applyTheme(sel.value);
+document.getElementById('lit').onchange = e => document.body.classList.toggle('lit-acc', e.target.value === 'acc');
+const multi = document.getElementById('multi');
+multi.value = localStorage.getItem('gallery-multi') || 'chips';
+const setMulti = () => { document.body.classList.toggle('multi-rows', multi.value === 'rows'); localStorage.setItem('gallery-multi', multi.value); };
+multi.onchange = setMulti; setMulti();
+const stat = document.getElementById('stat');
+stat.value = localStorage.getItem('gallery-stat') || 'mono';
+const setStat = () => { document.body.classList.remove('st-mono', 'st-muted'); if (stat.value !== 'tl') document.body.classList.add('st-' + stat.value); localStorage.setItem('gallery-stat', stat.value); };
+stat.onchange = setStat; setStat();
+document.getElementById('view').onchange = e => document.body.classList.toggle('phone', e.target.value === 'phone');
+function column(id, skin) {
+  const c = document.getElementById(id), k = SKINS[skin];
+  c.innerHTML = `<h2 class="colh">${k.name}</h2><p class="colsub">${k.sub}</p><div class="skin sk-${skin}"></div>`;
+  render(c.querySelector('.skin'), skin);
+}
+for (const [id, col, def] of [['left', 'colL', 'std'], ['right', 'colR', 'radix']]) {
+  const s = document.getElementById(id);
+  s.innerHTML = Object.entries(SKINS).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
+  s.value = localStorage.getItem('gallery-' + id) || def;
+  s.onchange = () => { localStorage.setItem('gallery-' + id, s.value); column(col, s.value); };
+  column(col, s.value);
+}
+</script>
+</body>
+</html>

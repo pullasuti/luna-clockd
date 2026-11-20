@@ -1,0 +1,18 @@
+# build output
+satellite/build/
+
+# recordings and device dumps stay out of git
+*.wav
+*.raw
+*.bin
+*.img
+
+# wake word models you add yourself (the shipped ones are tracked; export.sh
+# appends a ! line for each model in publish/models.sha256)
+satellite/models/*
+!satellite/models/okay_nabu.*
+!satellite/models/hey_jarvis.*
+!satellite/models/stop.*
+!satellite/models/hey_mycroft.*
+!satellite/models/hey_home_assistant.*
+!satellite/models/okay_computer.*

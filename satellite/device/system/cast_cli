@@ -1,0 +1,9 @@
+#!/system/bin/sh
+# Installed as /system/chrome/cast_cli (stock binary kept as cast_cli.stock).
+# While clockd is active, every Cast start/stop request is a no-op.
+# Runs as user chrome: /system/bin/sh, not /sbin/busybox (root-only, 0700),
+# or Cast can't start at all without clockd. That shell has test but no [.
+if test -f /tmp/clockd.active; then
+    exit 0
+fi
+exec /system/chrome/cast_cli.stock "$@"

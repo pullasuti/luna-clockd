@@ -1,0 +1,8 @@
+# sha256 of the pinned sources (sourced by build.sh). busybox and dropbear match the
+# checksums their sites publish (busybox-*.sha256, dropbear SHA256SUM); strace,
+# libpcap and tcpdump were recorded at first download (2026-11-09).
+BUSYBOX_SHA=34f9ea6ff8636f2c9241153b9114eefa9e65674a45318ae1ef95bb5f31c53bb2
+DROPBEAR_SHA=e098034a843699200c8c977a991fff73159735bf795d5f72ef672c41a6b1ae81
+STRACE_SHA=e076c851eec0972486ec842164fdc54547f9d17abd3d1449de8b120f5d299143
+LIBPCAP_SHA=68fa62cffb974f4275641ce14c2e2d75739251f30e00e6a0900903b247d76a03
+TCPDUMP_SHA=39675dfa06fb0e99be8da5d4a1784acbaab58ae0870231d956ff7870cb99eec1

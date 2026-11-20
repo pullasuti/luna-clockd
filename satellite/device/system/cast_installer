@@ -1,0 +1,16 @@
+#!/sbin/busybox sh
+# Installed as /system/bin/cast_installer (stock binary kept as cast_installer.stock).
+#
+# init runs /sbin/cast_installer.sh (ramdisk, as root) at boot, and again from
+# boot_complete.sh if Cast looks dead. That script calls this, then
+# `start cast_receiver`. With clockd enabled we start our own stack instead and
+# never install OTA packages. Without the flag file everything is stock.
+F=/data/local/clockd
+if [ -f $F/enabled ] && [ -f $F/start.sh ]; then
+    # marker for the cast_cli wrapper (runs as user chrome, cannot read $F)
+    echo clockd > /tmp/clockd.active
+    chmod 644 /tmp/clockd.active
+    /sbin/busybox sh $F/start.sh </dev/null >/dev/null 2>&1 &
+    exit 0
+fi
+exec /system/bin/cast_installer.stock "$@"
