@@ -2,8 +2,9 @@
 
 Where the FM radio code in luna-clockd came from and what it was compared against. This
 is the record to rely on if the origin of the code is ever questioned. **The rules for
-adding radio code today are in section 8.** Sections 1–7, 9 and 10 are the history of an
-audit made while the project was still Apache-2.0.
+adding radio code today are in section 8, and what clockd ships now is in section 11.**
+Sections 1–7, 9 and 10 are the history of an audit made while the project was still
+Apache-2.0.
 
 > **Decision 2026-11-27: the project moved to the GNU GPL v3 or later (from 1.7.0).**
 > The clean-room rewrite (section 10) passed the similarity check but broke the sample
@@ -258,7 +259,10 @@ These carry over into the contributor guide for new tuners (TODO, modular radio)
         internal/fmradio/rds.go internal/web/resample.go cmd/clockd/radio.go tools/rtlfm/*.go
     # noise level for comparison: the same on internal/output/flac.go, cmd/clockd/alarms.go
 
-## 10. Re-check of the rewrite (2026-11-26, commit 2ff7c28, clockd 1.6.29)
+## 10. Re-check of the rewrite (2026-11-26, commit 2ff7c28, clockd 1.6.29; superseded)
+
+> This rewrite never shipped: clockd 1.6.30 went back to the original driver (see the
+> decision at the top and section 11). The record below is kept as it was written.
 
 **How it was written:** a fresh language-model session (GLM 5.4) with only
 [radio-facts.md](radio-facts.md), the R820T2 register description and our own code. It
@@ -301,8 +305,26 @@ shape.
   - SUOMIPOP's RDS name decoded with neither, so the transmitter side was the cause that
   night, not the rewrite.
 
-**Verdict:** the radio code is our own: written from datasheets, our own measurements and
-standards, or (for the RTL2832U) a measured fact list. It can be published under the
-project licence. Remaining limits are those of radio-facts.md, section E: one stick
-tested.
+**Verdict at the time:** the rewritten RTL2832U setup was our own, written from a
+measured fact list, and could have been published under Apache-2.0. Superseded the next
+day (section 11).
+
+## 11. What clockd ships (1.7.0 and later)
+
+The released radio code is the original driver, under GPL-3.0-or-later:
+
+- **`internal/rtlsdr/rtl2832.go`:** the RTL2832U setup (baseband init, demodulator writes,
+  sample rate, IF, channel-filter loading, power-down) **follows librtlsdr** (osmocom
+  rtl-sdr, GPL-2.0-or-later), as found in section 6. It is used under GPLv3 and credited
+  in the file header, DETAILS Credits and the web UI's About card.
+- **`internal/rtlsdr/r820t.go`:** ours, from the Rafael R820T2 register description, with
+  the three facts of section 6 (3.57 MHz IF, the VCO range, 7-byte I2C writes) as in
+  librtlsdr's `tuner_r82xx.c`. Facts are not code; they are covered by the same credit.
+- **DSP, RDS, resampler, stream, `cmd/clockd/radio.go`, `tools/rtlfm`:** ours (section 6).
+- **`tools/rtlprobe`:** derived; removed from the source in 1.7.0.
+- **No GPL-2.0-only code:** nothing comes from the Linux kernel drivers (section 6
+  compared against them).
+
+The clean-room rewrite of section 10 is not in any release; it stays in the private
+history only. New radio code follows section 8.
 
