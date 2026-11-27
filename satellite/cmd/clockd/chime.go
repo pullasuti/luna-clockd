@@ -210,6 +210,8 @@ func (d *daemon) chimeLoop(ctx context.Context) {
 			continue
 		case d.chimeQuiet(c, now):
 			why = "quiet time"
+		case d.dnd.On():
+			why = "do not disturb"
 		case d.out.Busy("alert") || d.out.Busy("voice"):
 			why = "something else sounds"
 		case c.NotWhilePlaying && d.out.Busy("media"):

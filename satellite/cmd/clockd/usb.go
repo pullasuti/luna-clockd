@@ -235,6 +235,18 @@ func (u *usbSock) Status() map[string]any {
 	return st
 }
 
+// Drive names the mounted drive ("sda1#3", changing with every mount), or ""
+// without one: cheap enough for the status poll.
+func (u *usbSock) Drive() string {
+	dev, _, _, ok := usbMounted()
+	if !ok {
+		return ""
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return dev + "#" + strconv.Itoa(u.gen)
+}
+
 // SetHost switches the socket: host=true powers a USB drive, host=false
 // returns to adb over a cable (also what every boot starts as).
 func (u *usbSock) SetHost(host bool) error {

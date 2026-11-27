@@ -268,7 +268,7 @@ func (p *dlnaPlayer) Play(uri, title string) error {
 	}
 	d.log.Info("DLNA play", "url", shortURL(uri), "title", title)
 	var src *pausable
-	v := d.startMediaWith(name, func(buf *output.Buffer) error {
+	v := d.startMediaWith("dlna", name, func(buf *output.Buffer) error {
 		return fetchAudio(d.log, uri, buf, 0)
 	}, nil, func(b *output.Buffer) output.Source {
 		src = &pausable{b: b}

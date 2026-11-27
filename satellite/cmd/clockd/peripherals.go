@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -52,6 +53,10 @@ type peripherals struct {
 	// web UI preview of a state
 	previewState int
 	previewUntil time.Time
+	// a notification from Home Assistant (led_notify)
+	notifyUntil  time.Time
+	notifyColour [4]hw.RGB
+	notifyStyle  string
 }
 
 func (d *daemon) buildPeripherals() []esphome.Entity {
@@ -177,7 +182,11 @@ func (d *daemon) buildPeripherals() []esphome.Entity {
 	p.alarmRinging = &esphome.BinarySensor{Base: esphome.Base{ObjectID: "alarm_ringing", Name: "Alarm ringing", Icon: "mdi:alarm-bell"}}
 	p.alarmRinging.Set(false)
 	p.alarmStop = &esphome.Button{Base: esphome.Base{ObjectID: "alarm_stop", Name: "Stop alarm", Icon: "mdi:alarm-off"}}
-	p.alarmStop.OnPress = func() { d.stopAlarm() }
+	p.alarmStop.OnPress = func() {
+		if !d.stopAlarm() {
+			d.cancelSnooze() // nothing rings: a waiting snooze goes
+		}
+	}
 	p.alarmSnooze = &esphome.Button{Base: esphome.Base{ObjectID: "alarm_snooze", Name: "Snooze alarm", Icon: "mdi:alarm-snooze"}}
 	p.alarmSnooze.OnPress = func() { d.snoozeAlarm() }
 	return []esphome.Entity{p.nextAlarm, p.alarmRinging, p.alarmStop, p.alarmSnooze, p.muteSensor, p.buttons, p.nightLight, p.statusLED, p.muteSwitch, p.wakeSound, p.stopWord, p.ledBright, p.loginReq, p.loginOK, p.restartDev, p.restartD, p.socTemp, p.wifiRSSI, p.wifiNet, p.proximity, p.wakeEv}
@@ -208,6 +217,11 @@ func (d *daemon) onKey(e hw.KeyEvent) {
 		} else {
 			d.snoozeAlarm()
 		}
+		return
+	}
+	// right after a snooze, pressing again steps its length (alarm and mute keep
+	// their own jobs)
+	if e.Value == 1 && e.Code != hw.KeyMute && e.Code != hw.KeyAlarm && d.stepSnooze() {
 		return
 	}
 	if e.Value == 1 && e.Code != hw.KeyMute {
@@ -532,6 +546,17 @@ func (d *daemon) stopAlarm() bool {
 	return true
 }
 
+// cancelSnooze drops a waiting snooze (the alarm itself stays); reports
+// whether there was one.
+func (d *daemon) cancelSnooze() bool {
+	if d.alarms == nil || d.alarms.snoozed().IsZero() {
+		return false
+	}
+	d.alarms.clearSnooze()
+	d.log.Info("snooze cancelled")
+	return true
+}
+
 // stopRinging silences the ringing sound.
 func (d *daemon) stopRinging() bool {
 	d.mu.Lock()
@@ -603,7 +628,8 @@ const (
 	ledRinging
 	ledIdle
 	ledError
-	ledStock // the back-to-stock hold (not a web UI preview)
+	ledStock  // the back-to-stock hold (not a web UI preview)
+	ledNotify // a notification from Home Assistant (led_notify)
 )
 
 // pulse is a slow breathing level (listening), 2 s period. LEDs look bright
@@ -745,6 +771,8 @@ func (d *daemon) ledState() int {
 		return ledThinking
 	case d.st == stResponding:
 		return ledSpeaking
+	case time.Now().Before(d.hw.notifyUntil): // under alarms and voice turns, over the idle colours
+		return ledNotify
 	case d.muted:
 		return ledMuted
 	}
@@ -816,6 +844,8 @@ func (d *daemon) updateLEDs() {
 				d.pulseNightLight((l[1] + l[2]) / 2)
 			}
 		}
+	case ledNotify:
+		c = d.notifyFrame(now)
 	case ledMuted:
 		c = ledColours(lc.Muted)
 		if lc.Muted == "" {
@@ -872,6 +902,73 @@ func (d *daemon) endNightLightPulse() {
 		return
 	}
 	hw.SetNightLight(d.nightLevel())
+}
+
+// notifyFrame is the notification's LED frame at time now (its style
+// applied). Kept out of updateLEDs' switch: a "c, style :=" there declared a
+// new c and wrote a dark frame (v1.6.4-1.6.14).
+func (d *daemon) notifyFrame(now time.Duration) [4]hw.RGB {
+	d.mu.Lock()
+	c, style := d.hw.notifyColour, d.hw.notifyStyle
+	d.mu.Unlock()
+	switch style {
+	case "blink":
+		if (now/(500*time.Millisecond))%2 != 0 {
+			c = [4]hw.RGB{}
+		}
+	case "solid":
+	default: // pulse
+		f := pulse(now)
+		for i := range c {
+			c[i] = c[i].Scale(f)
+		}
+	}
+	return c
+}
+
+// notifyNames are the colour names led_notify takes besides #rrggbb.
+var notifyNames = map[string]string{
+	"red": "#ff0000", "orange": "#ff6000", "yellow": "#ffc000", "green": "#00ff00",
+	"cyan": "#00ffff", "blue": "#0000ff", "purple": "#a000ff", "pink": "#ff40a0", "white": "#ffffff",
+}
+
+// notifyLEDs shows a colour on the status LEDs for secs seconds (Home
+// Assistant's led_notify; 0 = 10 s, at most an hour): style "pulse" (also
+// ""), "blink" or "solid". Alarms and voice turns show over it.
+func (d *daemon) notifyLEDs(colour string, secs int, style string) error {
+	colour = strings.ToLower(strings.TrimSpace(colour))
+	if n, ok := notifyNames[colour]; ok {
+		colour = n
+	}
+	var r, g, b uint8
+	if n, err := fmt.Sscanf(colour, "#%02x%02x%02x", &r, &g, &b); err != nil || n != 3 || len(colour) != 7 {
+		return fmt.Errorf("color %q: a name (red, orange, yellow, green, cyan, blue, purple, pink, white) or #rrggbb", colour)
+	}
+	switch style = strings.ToLower(strings.TrimSpace(style)); style {
+	case "", "pulse", "blink", "solid":
+	default:
+		return fmt.Errorf("style %q: pulse, blink or solid", style)
+	}
+	if secs <= 0 {
+		secs = 10
+	}
+	secs = min(secs, 3600)
+	x := hw.RGB{R: r, G: g, B: b}
+	d.mu.Lock()
+	d.hw.notifyColour, d.hw.notifyStyle = [4]hw.RGB{x, x, x, x}, style
+	d.hw.notifyUntil = time.Now().Add(time.Duration(secs) * time.Second)
+	d.mu.Unlock()
+	d.log.Info("LED notification", "color", colour, "seconds", secs, "style", style)
+	return nil
+}
+
+// clearLEDNotify ends a notification (led_clear); reports whether one showed.
+func (d *daemon) clearLEDNotify() bool {
+	d.mu.Lock()
+	on := time.Now().Before(d.hw.notifyUntil)
+	d.hw.notifyUntil = time.Time{}
+	d.mu.Unlock()
+	return on
 }
 
 // flashError shows red on the status LEDs for a second.

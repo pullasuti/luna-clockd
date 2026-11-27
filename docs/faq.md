@@ -73,7 +73,16 @@ Short answers; the details are in the [README](../README.md) and [DETAILS.md](..
   - **Music Assistant** (Sendspin, synchronised with other speakers), which can play
     Spotify and other services;
   - **DLNA** apps (switch it on in the web UI);
-  - a **USB drive** with music on it.
+  - a **USB drive** with music on it: albums, artists and songs from the files' tags,
+    played on the clock or in your browser;
+  - **FM radio** from a cheap RTL-SDR USB stick (experimental; RTL2832U + R820T/R820T2
+    only, see [DETAILS](../DETAILS.md#features)).
+
+**Does the web UI's player play in sync with the clock?**
+- No. On This device your browser plays the music itself (USB drive files or the radio
+  stream), separately from the clock. With both on, the two drift apart, and the radio
+  in the browser runs a few seconds behind.
+- For speakers in sync, use Music Assistant (the clock is a Sendspin player).
 
 **Is it a Bluetooth speaker?**
 - Not yet. It can forward nearby Bluetooth Low Energy sensors to Home Assistant (a
@@ -104,7 +113,7 @@ Short answers; the details are in the [README](../README.md) and [DETAILS.md](..
     - Which alarms: action=list (leave clock empty for all clocks).
     - Delete or switch: action=delete|on|off, alarm=the label, or the HH:MM if it has
       no label. If unsure which alarm, call list first. One call per alarm.
-    - clock: the room or name the user said (e.g. Makuuhuone); empty for the default.
+    - clock: the room or name the user said (e.g. Bedroom); empty for the default.
       If the tool says no clock matches, pick one from the list it gives and retry.
     - One tool call per message: wait for each result before the next call (some local
       model servers garble a second call in the same message).

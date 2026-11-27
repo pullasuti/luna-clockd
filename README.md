@@ -43,7 +43,8 @@ You can support this nonsense on [Ko-fi](https://ko-fi.com/pullasuti) if you fee
 
 - **Voice:** wake words detected on the clock, timers and announcements from Assist
 - **Alarms:** kept on the clock, set from the buttons, the web UI or Home Assistant
-- **Music:** a Music Assistant speaker with synchronised playback
+- **Music:** a Music Assistant speaker with synchronised playback, a music library from a
+  USB drive, and FM radio from an RTL-SDR stick (experimental)
 - **Clock face:** time, weekday and weather, with little eyes while it listens
 - **Night schedule:** dims the face and fades the night light
 - **Local:** no internet needed; [what is switched off](DETAILS.md#local-first-what-changes-on-the-clock)
@@ -148,7 +149,8 @@ software. Hold them again for 12 s there to factory reset it.
 
 ## Licence
 
-[Apache License 2.0](LICENSE). Bundled third-party parts keep their own licences
+[GNU General Public License v3.0 or later](LICENSE). Releases up to 1.0.0 were
+published under the Apache License 2.0. Bundled third-party parts keep their own licences
 ([Credits](DETAILS.md#credits)).
 
 <sub>Not affiliated with Lenovo, Google, Nabu Casa or the Open Home Foundation. Lenovo's GPL

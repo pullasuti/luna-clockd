@@ -102,7 +102,12 @@ func mp3Header(r io.Reader) (info TrackInfo, err error) {
 					var v1 [128]byte
 					if _, err := s.Seek(end-128, io.SeekStart); err == nil {
 						if _, err := io.ReadFull(r, v1[:]); err == nil && string(v1[:3]) == "TAG" {
-							info.Name = joinName(latin1(v1[3:33]), latin1(v1[33:63])) // title, artist
+							info.Title, info.Artist, info.Album = strings.TrimSpace(latin1(v1[3:33])), strings.TrimSpace(latin1(v1[33:63])), strings.TrimSpace(latin1(v1[63:93]))
+							info.Year = strings.TrimSpace(latin1(v1[93:97]))
+							if v1[125] == 0 && v1[126] != 0 { // ID3v1.1: the track number
+								info.Track = int(v1[126])
+							}
+							info.Name = joinName(info.Title, info.Artist)
 							size -= 128
 						}
 					}
@@ -127,8 +132,10 @@ func mp3Header(r io.Reader) (info TrackInfo, err error) {
 			tagLen += 10
 		}
 		end := min(tagLen, len(head))
-		if name := id3v2Name(head[3], head[10:end]); name != "" {
-			info.Name = name
+		if t := id3v2Tags(head[3], head[10:end]); t.Title != "" || t.Artist != "" || t.Album != "" {
+			info.Title, info.Artist, info.Album = t.Title, t.Artist, t.Album
+			info.AlbumArtist, info.Year, info.Track, info.Disc = t.AlbumArtist, t.Year, t.Track, t.Disc
+			info.Name = joinName(t.Title, t.Artist)
 		}
 		start = tagLen
 		if start+4 > len(head) {
@@ -262,10 +269,35 @@ func synchsafe(b []byte) int {
 	return int(b[0]&0x7F)<<21 | int(b[1]&0x7F)<<14 | int(b[2]&0x7F)<<7 | int(b[3]&0x7F)
 }
 
-// id3v2Name finds title and artist in an ID3v2 tag body (after the 10-byte
-// header). Unsynchronised and compressed frames are skipped.
-func id3v2Name(ver byte, body []byte) string {
-	var title, artist string
+// id3v2Tags finds the tags in an ID3v2 tag body (after the 10-byte header).
+// Unsynchronised and compressed frames are skipped.
+func id3v2Tags(ver byte, body []byte) (t TrackInfo) {
+	id3Frames(ver, body, func(id string, data []byte) {
+		switch id {
+		case "TIT2", "TT2":
+			t.Title = id3Text(data)
+		case "TPE1", "TP1":
+			t.Artist = id3Text(data)
+		case "TALB", "TAL":
+			t.Album = id3Text(data)
+		case "TPE2", "TP2":
+			t.AlbumArtist = id3Text(data)
+		case "TDRC", "TYER", "TYE":
+			if t.Year == "" {
+				t.Year = id3Text(data)
+			}
+		case "TRCK", "TRK":
+			t.Track = tagNum(id3Text(data))
+		case "TPOS", "TPA":
+			t.Disc = tagNum(id3Text(data))
+		}
+	})
+	return t
+}
+
+// id3Frames calls fn with each readable frame of an ID3v2 tag body (after the
+// 10-byte header): unsynchronised, compressed and encrypted frames are left out.
+func id3Frames(ver byte, body []byte, fn func(id string, data []byte)) {
 	idLen, hdrLen := 4, 10
 	if ver == 2 {
 		idLen, hdrLen = 3, 6
@@ -289,17 +321,14 @@ func id3v2Name(ver byte, body []byte) string {
 		if ver == 3 {
 			plain = body[9]&0xC0 == 0
 		}
+		if ver == 4 && plain && body[9]&0x01 != 0 && len(data) >= 4 {
+			data = data[4:] // a data length indicator comes first
+		}
 		if plain {
-			switch id {
-			case "TIT2", "TT2":
-				title = id3Text(data)
-			case "TPE1", "TP1":
-				artist = id3Text(data)
-			}
+			fn(id, data)
 		}
 		body = body[hdrLen+size:]
 	}
-	return joinName(title, artist)
 }
 
 // id3Text decodes an ID3v2 text frame (first value of a multi-value frame).

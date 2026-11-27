@@ -59,6 +59,10 @@ type Config struct {
 	// DLNA: the USB drive as a media server, the clock as a renderer
 	// (cmd/clockd/dlna.go). Both off by default: UPnP has no authentication.
 	DLNA DLNA `json:"dlna"`
+	// Radio: the FM radio from an RTL-SDR stick (cmd/clockd/radio.go).
+	Radio Radio `json:"radio"`
+	// DND: do not disturb (cmd/clockd/dnd.go).
+	DND DND `json:"dnd"`
 	// UpdateCheck lets clockd ask the project's GitHub releases once a day
 	// whether a newer version exists (cmd/clockd/onlineupdate.go). Off by
 	// default: it is the only internet access clockd has.
@@ -75,6 +79,26 @@ type DLNA struct {
 	Renderer bool `json:"renderer"`
 }
 
+// DND silences what the clock sounds on its own (the hourly chime, the wake
+// sound, Home Assistant's announcements, the startup tune), never alarms or
+// timers. Schedule: "none" (only by hand), "night" (while night mode is on)
+// or "times" (Start to End, "HH:MM"; "" = none).
+type DND struct {
+	Schedule string `json:"schedule"`
+	Start    string `json:"start"`
+	End      string `json:"end"`
+}
+
+type Radio struct {
+	// Region: "europe" (87.5-108 MHz, 50 us de-emphasis: most of the world),
+	// "americas" (87.5-108 MHz, 75 us: also South Korea) or "japan" (76-95
+	// MHz, 50 us). "" = europe.
+	Region string `json:"region"`
+	// Reception: "normal", "weak" (more tuner gain, for far-off stations) or
+	// "strong" (less, next to a transmitter). "" = normal.
+	Reception string `json:"reception"`
+}
+
 // Bluetooth is the BLE advertisement proxy. Default off: the radio shares its
 // antenna with Wi-Fi, so it runs only when asked for.
 type Bluetooth struct {
@@ -85,7 +109,10 @@ type Bluetooth struct {
 
 type Voice struct {
 	WakeSound bool `json:"wake_sound"` // chime after the wake word
-	StopWord  bool `json:"stop_word"`  // "stop" ends speech, announcements, media and timers
+	// WakeVote: with several clocks around, the one that heard the wake word
+	// best answers (claims over UDP 6054 to the clocks found by mDNS)
+	WakeVote bool `json:"wake_vote"`
+	StopWord bool `json:"stop_word"` // "stop" ends speech, announcements, media and timers
 	// MicGainDB is a digital gain on the microphone (after the vendor AEC),
 	// -12..+24 dB. It affects the wake word, the stop word and what HA hears.
 	MicGainDB float64 `json:"mic_gain_db"`
@@ -252,10 +279,12 @@ func Defaults() Config {
 		NTPIntervalMinutes: 60,
 		WakeWords:          []string{"okay_nabu"},
 		Display:            Display{Enabled: true, Brightness: 10, Clock24h: true, ColonBlink: true, AutoBrightness: true, ScrollMs: 250, BrightnessMin: 1, Eyes: false, StartupAnimation: true, HALostHint: "icon"},
-		Voice:              Voice{WakeSound: true, StopWord: true, StopCutoff: DefaultStopCutoff, AlarmSound: "gentle", SnoozeMinutes: 10, WakeSensitivity: "slight", WakeEasierPlaying: true, StartupSound: "arpeggio", MicSource: "webrtc", AttemptClips: true, Shush: false},
+		Voice:              Voice{WakeSound: true, WakeVote: true, StopWord: true, StopCutoff: DefaultStopCutoff, AlarmSound: "gentle", SnoozeMinutes: 10, WakeSensitivity: "slight", WakeEasierPlaying: true, StartupSound: "arpeggio", MicSource: "webrtc", AttemptClips: true, Shush: false},
 		LEDs:               DefaultLEDs(),
 		Sendspin:           Sendspin{Enabled: true, ShowNowPlaying: true},
 		Chime:              Chime{Volume: 40, Quiet: "night", QuietStart: "22:00", QuietEnd: "08:00", NotWhilePlaying: true},
+		Radio:              Radio{Region: "europe", Reception: "normal"},
+		DND:                DND{Schedule: "none", Start: "22:00", End: "07:00"},
 		Night: Night{Start: "22:00", End: "07:00", Schedule: "times", Display: "dim", DisplayBrightness: 1,
 			NightLight: "dark", NightLightLevel: 40, FadeMinutes: 2, DarkLevel: 5},
 	}
@@ -398,6 +427,22 @@ type State struct {
 	// starts the last timer with it.
 	SleepSound string `json:"sleep_sound,omitempty"`
 	SleepTimer *int   `json:"sleep_timer,omitempty"`
+	// FM radio (an RTL-SDR stick on the USB socket): the stations the last
+	// search found and the last frequency played, Hz
+	RadioStations []RadioStation `json:"radio_stations,omitempty"`
+	RadioLast     int            `json:"radio_last,omitempty"`
+	// RadioFavs: the favourite stations (Hz, up to six, in the user's order);
+	// when set, Home Assistant's FM radio dropdown lists these
+	RadioFavs []int `json:"radio_favs,omitempty"`
+	// the secret in the radio's stream link (/radio/<token>.wav)
+	RadioStreamToken string `json:"radio_stream_token,omitempty"`
+}
+
+// RadioStation is one FM station a search found.
+type RadioStation struct {
+	Hz      int     `json:"hz"`
+	PilotDB float64 `json:"pilot_db"`       // stereo pilot over the noise: how well it comes in
+	Name    string  `json:"name,omitempty"` // RDS name, learned while it played
 }
 
 var stateMu sync.Mutex

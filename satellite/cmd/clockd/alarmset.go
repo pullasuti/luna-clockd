@@ -18,6 +18,8 @@ import (
 //     icon lit when it is on); another short press, or 8 s idle, goes back
 //   - in that view, a short alarm + volume down press together deletes the
 //     alarm shown (held on, the pair is the 12 s back-to-stock countdown)
+//   - in that view, the action button skips the next ring of the alarm shown
+//     ("skip"; again: "on"), or switches a one-time alarm on and off
 //   - holding the alarm button 2 s sets an alarm: the one shown in the view,
 //     or a new one from the clock. The steps are repeat (once, every day,
 //     weekdays, weekends or one day), hours, minutes and, with a 12 h clock,
@@ -100,6 +102,17 @@ func (u *alarmUI) key(e hw.KeyEvent) bool {
 			if short {
 				u.short()
 			}
+		}
+		return true
+	case hw.KeyPlay:
+		u.mu.Lock()
+		mode := u.mode
+		u.mu.Unlock()
+		if mode != uiView {
+			return false
+		}
+		if e.Value == 1 {
+			u.toggleSkip()
 		}
 		return true
 	case hw.KeyVolumeUp, hw.KeyVolumeDown:
@@ -380,6 +393,53 @@ func (u *alarmUI) comboReleased(held time.Duration) bool {
 	u.close()
 	u.d.face.flash("del", 1500*time.Millisecond)
 	return true
+}
+
+// toggleSkip: the action button in the view. A repeating alarm skips its next
+// ring (or stops skipping it); a one-time alarm switches on or off.
+func (u *alarmUI) toggleSkip() {
+	u.mu.Lock()
+	if len(u.list) == 0 {
+		u.mu.Unlock()
+		return
+	}
+	a := u.list[u.idx]
+	u.mu.Unlock()
+	now := time.Now()
+	var err error
+	word := ""
+	if a.Repeats() {
+		skip := !a.Skipping(now)
+		err = u.d.alarms.skip(a.ID, skip)
+		word = map[bool]string{true: "skip", false: "on"}[skip]
+	} else {
+		l := u.d.alarms.List()
+		for i := range l {
+			if l[i].ID == a.ID {
+				l[i].On = !l[i].On
+				word = map[bool]string{true: "on", false: "off"}[l[i].On]
+			}
+		}
+		err = u.d.alarms.Set(l)
+	}
+	if err != nil {
+		u.d.log.Error("alarm not changed", "err", err)
+		u.d.out.Play(output.NewSamples(u.d.chimeError, 0), 1, "alert")
+		return
+	}
+	// the view keeps the same alarm, with its new state
+	l := u.sorted()
+	u.mu.Lock()
+	u.list = l
+	for i, x := range l {
+		if x.ID == a.ID {
+			u.idx = i
+		}
+	}
+	u.mu.Unlock()
+	u.beep()
+	u.show()
+	u.d.face.flash(word, 1500*time.Millisecond)
 }
 
 func (u *alarmUI) close() {

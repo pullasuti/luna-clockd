@@ -123,7 +123,7 @@ func TestStickParts(t *testing.T) {
 		os.MkdirAll(filepath.Join(sys, d), 0o755)
 	}
 	os.WriteFile(filepath.Join(sys, "sdb", "size"), []byte("7864320\n"), 0o600)
-	os.WriteFile(filepath.Join(sys, "sdd", "size"), []byte("0\n"), 0o600) // empty card reader
+	os.WriteFile(filepath.Join(sys, "sdd", "size"), []byte("0\n"), 0o600)             // empty card reader
 	for _, n := range []string{"sda", "sda1", "sda2", "sda10", "sdb", "sdc", "sdd"} { // sdc1's node is missing
 		os.WriteFile(filepath.Join(dev, n), nil, 0o600)
 	}

@@ -58,11 +58,21 @@ func TestAlarmDue(t *testing.T) {
 }
 
 func TestRampSource(t *testing.T) {
-	src := &rampSource{src: constSource{}, total: 100}
+	src := &rampSource{src: constSource{}, total: 100, from: 0.25}
 	buf := make([]float32, 200)
 	src.Read(buf)
 	if buf[0] != 0.25 || buf[99] < 0.99 || buf[150] != 1 {
 		t.Errorf("ramp %v %v %v", buf[0], buf[99], buf[150])
+	}
+	// fade-in: from near silence, a quarter of the way still quiet
+	f := newRamp(constSource{}, 2)
+	if f.total != 2*60*48000*2 {
+		t.Fatalf("fade total %d", f.total)
+	}
+	buf = make([]float32, f.total+10)
+	f.Read(buf)
+	if q := buf[f.total/4]; buf[0] > 0.03 || q > 0.1 || buf[f.total-1] < 0.99 || buf[f.total+5] != 1 {
+		t.Errorf("fade %v %v %v", buf[0], q, buf[f.total-1])
 	}
 }
 
@@ -73,4 +83,45 @@ func (constSource) Read(dst []float32) (int, bool) {
 		dst[i] = 1
 	}
 	return len(dst), true
+}
+
+// pressing again right after a snooze steps its length 10 -> 15 -> 20 -> 5,
+// counted from the snooze; later presses don't
+func TestStepSnooze(t *testing.T) {
+	c := testAlarmCtl(t, alarms.List{{ID: "a", Time: "07:00", Days: []int{1}, On: true}})
+	t0 := time.Date(2026, 11, 23, 7, 0, 0, 0, time.Local)
+	c.snoozeAt, c.snoozeOf = t0.Add(10*time.Minute), c.list[0]
+	c.snoozeFrom, c.snoozeTouch, c.snoozeLen = t0, t0, 10*time.Minute
+	want := []int{15, 20, 5, 10}
+	for i, m := range want {
+		now := t0.Add(time.Duration(i+1) * time.Second)
+		n, ok := c.stepSnooze(now)
+		if !ok || int(n.Minutes()) != m || !c.snoozeAt.Equal(t0.Add(n)) {
+			t.Fatalf("step %d: %v %v, rings %v; want %d min from the snooze", i+1, n, ok, c.snoozeAt, m)
+		}
+	}
+	if _, ok := c.stepSnooze(t0.Add(4*time.Second + snoozeStepWindow + time.Millisecond)); ok {
+		t.Error("stepped after the window")
+	}
+	c.snoozeAt = time.Time{}
+	if _, ok := c.stepSnooze(t0); ok {
+		t.Error("stepped without a snooze")
+	}
+}
+
+// skip: the next ring of the alarm is left out, and back
+func TestAlarmSkip(t *testing.T) {
+	c := testAlarmCtl(t, alarms.List{{ID: "w", Time: "06:45", Days: []int{1, 2, 3, 4, 5}, On: true}})
+	if err := c.skip("w", true); err != nil {
+		t.Fatal(err)
+	}
+	if !c.List()[0].Skipping(time.Now()) {
+		t.Error("not skipping")
+	}
+	if err := c.skip("w", false); err != nil || c.List()[0].Skip != "" {
+		t.Errorf("unskip: %v %q", err, c.List()[0].Skip)
+	}
+	if c.skip("nope", true) == nil {
+		t.Error("unknown alarm skipped")
+	}
 }

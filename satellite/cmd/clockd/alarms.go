@@ -14,6 +14,7 @@ import (
 
 	"lenovo-satellite/internal/alarms"
 	"lenovo-satellite/internal/output"
+	"lenovo-satellite/internal/rtlsdr"
 )
 
 // The clock's own alarms (internal/alarms has the list and the times). They
@@ -55,8 +56,12 @@ type alarmCtl struct {
 	armed    time.Time // alarm times up to here have been handled
 	snoozeAt time.Time
 	snoozeOf alarms.Alarm
-	lastNext string    // last next-alarm value published
-	sunFor   time.Time // the alarm time a sunrise light is up for (zero = none)
+	// the snooze length can be stepped by pressing again right after
+	// snoozing (stepSnooze): when it started, how long, the last press
+	snoozeFrom, snoozeTouch time.Time
+	snoozeLen               time.Duration
+	lastNext                string    // last next-alarm value published
+	sunFor                  time.Time // the alarm time a sunrise light is up for (zero = none)
 }
 
 func newAlarmCtl(d *daemon, path string) *alarmCtl {
@@ -153,7 +158,7 @@ func (c *alarmCtl) tick(now time.Time) {
 	c.sunrise(now)
 	if due := c.due(now); due != nil {
 		c.d.log.Info("alarm ringing", "time", due.Time, "label", due.Label)
-		c.d.ring(due.Sound, due.ID)
+		c.d.ring(due.Sound, due.ID, due.Fade)
 	}
 	c.publish(now)
 }
@@ -208,12 +213,54 @@ func (c *alarmCtl) due(now time.Time) *alarms.Alarm {
 
 // snooze: the ringing alarm rings again in snoozeFor.
 func (c *alarmCtl) snooze(a alarms.Alarm) {
-	at := time.Now().Add(c.d.snoozeFor())
+	now := time.Now()
+	n := c.d.snoozeFor()
 	c.mu.Lock()
-	c.snoozeAt, c.snoozeOf = at, a
+	c.snoozeAt, c.snoozeOf = now.Add(n), a
+	c.snoozeFrom, c.snoozeTouch, c.snoozeLen = now, now, n
 	c.mu.Unlock()
-	c.d.log.Info("alarm snoozed", "until", at.Format("15:04"))
-	c.publish(time.Now())
+	c.d.log.Info("alarm snoozed", "until", now.Add(n).Format("15:04"))
+	c.publish(now)
+}
+
+// snoozeStepWindow: a press this soon after snoozing (or the last step)
+// steps the snooze length instead of doing what the button does.
+const snoozeStepWindow = 3 * time.Second
+
+// stepSnooze: the next snooze length (5 more minutes, after 20 back to 5),
+// counted from when it was snoozed. Only within snoozeStepWindow of the last
+// press; reports the new length.
+func (c *alarmCtl) stepSnooze(now time.Time) (time.Duration, bool) {
+	c.mu.Lock()
+	if c.snoozeAt.IsZero() || now.Sub(c.snoozeTouch) > snoozeStepWindow {
+		c.mu.Unlock()
+		return 0, false
+	}
+	n := c.snoozeLen.Round(5*time.Minute) + 5*time.Minute
+	if n > 20*time.Minute {
+		n = 5 * time.Minute
+	}
+	c.snoozeLen, c.snoozeTouch = n, now
+	c.snoozeAt = c.snoozeFrom.Add(n)
+	at := c.snoozeAt
+	c.mu.Unlock()
+	c.d.log.Info("snooze length stepped", "minutes", int(n.Minutes()), "until", at.Format("15:04"))
+	c.publish(now)
+	return n, true
+}
+
+// skip: skip (or no longer skip) the next ring of an alarm.
+func (c *alarmCtl) skip(id string, on bool) error {
+	l := c.List()
+	now := time.Now()
+	for i := range l {
+		if l[i].ID == id {
+			l[i] = l[i].SkipNext(now, on)
+			c.d.log.Info("alarm skip", "time", l[i].Time, "skip", l[i].Skip)
+			return c.Set(l)
+		}
+	}
+	return fmt.Errorf("no alarm %q", id)
 }
 
 func (c *alarmCtl) clearSnooze() {
@@ -332,7 +379,22 @@ func (c *alarmCtl) sunriseLit(now time.Time) bool {
 // ---- ringing (timers and alarms) ----
 
 // ring starts the alarm sound (5 minutes at most). alarmID is "" for a timer.
-func (d *daemon) ring(sound, alarmID string) {
+// An FM sound ("fm:91.2") plays the radio; without a working radio the alarm
+// rings with the timer sound. fade: minutes an alarm fades in (0 = the quick
+// ramp).
+func (d *daemon) ring(sound, alarmID string, fade int) {
+	if hz, radio := alarms.RadioHz(sound); radio {
+		if d.ringRadio(hz, alarmID, fade) {
+			return
+		}
+		sound = ""
+	}
+	if path, usb := strings.CutPrefix(sound, "usb:"); usb {
+		if d.ringUSB(path, alarmID, fade) {
+			return
+		}
+		sound = ""
+	}
 	if sound == "" {
 		sound = d.cfg.Get().Voice.AlarmSound
 	}
@@ -344,7 +406,7 @@ func (d *daemon) ring(sound, alarmID string) {
 	pcm := alarmTone(sound)
 	var src output.Source = output.NewSamples(pcm, alarmRepeats(pcm))
 	if alarmID != "" {
-		src = &rampSource{src: src, total: int(alarmRamp.Seconds() * output.Rate * output.Channels)}
+		src = newRamp(src, fade)
 	}
 	d.alarm = d.out.Play(src, 1, "alert")
 	d.alarmID = alarmID
@@ -367,6 +429,278 @@ func (d *daemon) ring(sound, alarmID string) {
 	d.updateLEDs()
 }
 
+// ringRadio rings with an FM station: the radio as an alarm voice (volume
+// ramp, buttons, stop word and the 5-minute limit as for any alarm sound).
+// False when the radio can't (no stick, a search runs); a stick that fails
+// while ringing hands over to the timer sound. The station takes the tuner
+// from whatever played; network listeners hear the alarm station.
+func (d *daemon) ringRadio(hz int, alarmID string, fade int) bool {
+	node, _, err := rtlsdr.Find()
+	if err != nil {
+		d.log.Warn("alarm: no radio stick, ringing the timer sound", "mhz", float64(hz)/1e6)
+		return false
+	}
+	d.mu.Lock()
+	ringing := d.alarm != nil
+	d.mu.Unlock()
+	if ringing {
+		return true
+	}
+	r := &d.radio
+	r.mu.Lock()
+	if r.searching {
+		r.mu.Unlock()
+		d.log.Warn("alarm: a station search runs, ringing the timer sound")
+		return false
+	}
+	speaker := r.speaker
+	r.haltLocked()
+	q := make(chan struct{})
+	r.quit, r.want, r.speaker = q, hz, true
+	r.mu.Unlock()
+	if speaker {
+		d.stopMedia() // the radio played as media: the alarm takes the tuner
+	}
+	buf := output.NewBuffer(5)
+	src := newRamp(buf, fade)
+	d.mu.Lock()
+	d.alarm = d.out.Play(src, 1, "alert")
+	d.alarmID = alarmID
+	v := d.alarm
+	d.mu.Unlock()
+	d.log.Info("alarm: radio", "mhz", float64(hz)/1e6)
+	runErr := make(chan error, 1)
+	go func() { runErr <- d.radioRun(node, hz, buf, q) }()
+	limit := time.AfterFunc(alarmMs*time.Millisecond, func() { d.out.Stop(v) })
+	d.face.setRinging(true)
+	d.face.wake(5 * time.Minute)
+	d.publishRinging(true)
+	go func() {
+		<-v.Done()
+		limit.Stop()
+		buf.Abort() // the run lets go of the stick (or plays on for listeners)
+		d.mu.Lock()
+		current := d.alarm == v // not stopped or snoozed: ended by itself
+		if current {
+			d.alarm, d.alarmID = nil, ""
+		}
+		d.mu.Unlock()
+		var err error
+		select {
+		case err = <-runErr:
+		case <-time.After(2 * time.Second):
+		}
+		if current && err != nil {
+			d.log.Warn("alarm: the radio failed, ringing the timer sound", "err", err)
+			d.ring("", alarmID, fade)
+			return
+		}
+		d.face.setRinging(false)
+		d.publishRinging(false)
+		d.updateLEDs()
+	}()
+	d.updateLEDs()
+	return true
+}
+
+// ringUSB rings with a music file from the USB drive, repeated until the
+// alarm stops (the 5-minute limit as for any alarm sound). False when the
+// drive or the file isn't there or gives no audio within usbAlarmWait: then
+// the timer sound rings, so a missing or slow drive never costs the alarm. A
+// drive that fails while ringing hands over to the timer sound too.
+func (d *daemon) ringUSB(path, alarmID string, fade int) bool {
+	wb := d.fw.wb.Load()
+	if wb == nil || wb.usb == nil {
+		return false
+	}
+	d.mu.Lock()
+	ringing := d.alarm != nil
+	d.mu.Unlock()
+	if ringing {
+		return true
+	}
+	open := func() (*os.File, error) { f, _, err := wb.usb.OpenAudio(path); return f, err }
+	f, err := open()
+	if err != nil {
+		d.log.Warn("alarm: USB file not available, ringing the timer sound", "file", path, "err", err)
+		return false
+	}
+	src := newLoopSource(f, open)
+	if !src.started(usbAlarmWait) {
+		src.stop()
+		d.log.Warn("alarm: no audio from the USB file, ringing the timer sound", "file", path, "err", src.failure())
+		return false
+	}
+	d.mu.Lock()
+	if d.alarm != nil {
+		d.mu.Unlock()
+		src.stop()
+		return true
+	}
+	d.alarm = d.out.Play(newRamp(src, fade), 1, "alert")
+	d.alarmID = alarmID
+	v := d.alarm
+	d.mu.Unlock()
+	d.log.Info("alarm: USB music", "file", path)
+	limit := time.AfterFunc(alarmMs*time.Millisecond, func() { d.out.Stop(v) })
+	d.face.setRinging(true)
+	d.face.wake(5 * time.Minute)
+	d.publishRinging(true)
+	go func() {
+		<-v.Done()
+		limit.Stop()
+		src.stop()
+		d.mu.Lock()
+		current := d.alarm == v // not stopped or snoozed: ended by itself
+		if current {
+			d.alarm, d.alarmID = nil, ""
+		}
+		d.mu.Unlock()
+		if err := src.failure(); current && err != nil {
+			d.log.Warn("alarm: the USB file failed, ringing the timer sound", "file", path, "err", err)
+			d.ring("", alarmID, fade)
+			return
+		}
+		d.face.setRinging(false)
+		d.publishRinging(false)
+		d.updateLEDs()
+	}()
+	d.updateLEDs()
+	return true
+}
+
+// usbAlarmWait: how long a USB alarm file may take to give its first audio
+// (a drive spinning up) before the timer sound rings instead.
+const usbAlarmWait = 3 * time.Second
+
+// loopSource plays a file over and over: a producer decodes each pass into
+// its own Buffer (the next one fills while the current one plays, so the
+// repeat has no gap); Read moves on to the next buffer when one ends.
+type loopSource struct {
+	next  chan *output.Buffer
+	quit  chan struct{}
+	first chan struct{} // closed at the first audio or the first failure
+	cur   *output.Buffer
+
+	mu    sync.Mutex
+	bufs  []*output.Buffer
+	err   error
+	done  bool // the producer gave up (err says why)
+	audio bool // the first pass gave audio
+	once  sync.Once
+}
+
+func newLoopSource(f *os.File, open func() (*os.File, error)) *loopSource {
+	l := &loopSource{next: make(chan *output.Buffer, 1), quit: make(chan struct{}), first: make(chan struct{})}
+	go l.produce(f, open)
+	return l
+}
+
+func (l *loopSource) produce(f *os.File, open func() (*os.File, error)) {
+	firstOnce := sync.OnceFunc(func() { close(l.first) })
+	defer firstOnce()
+	fail := func(err error) {
+		l.mu.Lock()
+		l.err, l.done = err, true
+		l.mu.Unlock()
+	}
+	for pass := 0; ; pass++ {
+		if pass > 0 {
+			var err error
+			if f, err = open(); err != nil {
+				fail(err)
+				return
+			}
+		}
+		b := output.NewBuffer(5)
+		l.mu.Lock()
+		l.bufs = append(l.bufs, b)
+		l.mu.Unlock()
+		select {
+		case l.next <- b:
+		case <-l.quit:
+			f.Close()
+			return
+		}
+		go func() { // the first audio, while Decode fills the buffer
+			for i := 0; i < 100; i++ {
+				if w, _ := b.Progress(); w > 0 {
+					l.mu.Lock()
+					l.audio = true
+					l.mu.Unlock()
+					firstOnce()
+					return
+				}
+				time.Sleep(30 * time.Millisecond)
+			}
+		}()
+		err := output.Decode(f, b)
+		f.Close()
+		if w, _ := b.Progress(); w == 0 { // nothing decoded: don't spin on a bad file
+			if err == nil {
+				err = fmt.Errorf("no audio in the file")
+			}
+			fail(err)
+			return
+		}
+		select {
+		case <-l.quit:
+			return
+		default:
+		}
+	}
+}
+
+// started waits for the first audio; false after a failure or the timeout.
+func (l *loopSource) started(timeout time.Duration) bool {
+	select {
+	case <-l.first:
+	case <-time.After(timeout):
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.audio
+}
+
+func (l *loopSource) Read(dst []float32) (int, bool) {
+	for {
+		if l.cur == nil {
+			select {
+			case l.cur = <-l.next:
+			default:
+				l.mu.Lock()
+				over := l.done
+				l.mu.Unlock()
+				return 0, !over // the next pass is still opening: a short gap
+			}
+		}
+		n, ok := l.cur.Read(dst)
+		if ok || n > 0 {
+			return n, true
+		}
+		l.cur = nil // this pass ended: on to the next
+	}
+}
+
+func (l *loopSource) stop() {
+	l.once.Do(func() {
+		close(l.quit)
+		l.mu.Lock()
+		for _, b := range l.bufs {
+			b.Abort()
+		}
+		l.mu.Unlock()
+	})
+}
+
+// failure: why the file stopped playing (nil while it plays or after stop).
+func (l *loopSource) failure() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.err
+}
+
 func (d *daemon) publishRinging(on bool) {
 	if d.hw.alarmRinging != nil {
 		d.hw.alarmRinging.Set(on)
@@ -383,31 +717,59 @@ func (d *daemon) ringingAlarm() string {
 	return d.alarmID
 }
 
-// snoozeAlarm silences a ringing alarm for the snooze length.
+// snoozeAlarm silences a ringing alarm for the snooze length; right after a
+// snooze it steps the length instead (Home Assistant's Snooze pressed again).
 func (d *daemon) snoozeAlarm() bool {
 	id := d.ringingAlarm()
 	if id == "" {
-		return false
+		return d.stepSnooze()
 	}
 	a, ok := d.alarms.byID(id)
 	d.stopRinging()
 	if ok {
 		d.alarms.snooze(a)
-		d.face.flash(fmt.Sprintf("%2d", int(d.snoozeFor().Minutes())), 2*time.Second)
+		d.face.flash(fmt.Sprintf("%2d", int(d.snoozeFor().Minutes())), snoozeStepWindow)
 	}
 	return true
 }
 
-// rampSource raises the volume from a quarter to full over its first total samples.
+// stepSnooze: a button pressed again while the snooze minutes show steps the
+// length (10 -> 15 -> 20 -> 5 ...); reports whether it did.
+func (d *daemon) stepSnooze() bool {
+	n, ok := d.alarms.stepSnooze(time.Now())
+	if !ok {
+		return false
+	}
+	d.out.Play(output.NewSamples(d.chimeTick, 0), 1, "alert")
+	d.face.flash(fmt.Sprintf("%2d", int(n.Minutes())), snoozeStepWindow)
+	return true
+}
+
+// rampSource raises the volume from `from` to full over its first total
+// samples.
 type rampSource struct {
 	src      output.Source
 	n, total int
+	from     float32
+}
+
+// newRamp is the alarm's start: from a quarter to full in 30 s, or with
+// fade-in minutes from near silence (squared, so it creeps up as ears hear).
+func newRamp(src output.Source, fade int) *rampSource {
+	if fade <= 0 {
+		return &rampSource{src: src, total: int(alarmRamp.Seconds() * output.Rate * output.Channels), from: 0.25}
+	}
+	return &rampSource{src: src, total: fade * 60 * output.Rate * output.Channels, from: 0.02}
 }
 
 func (r *rampSource) Read(dst []float32) (int, bool) {
 	n, ok := r.src.Read(dst)
 	for i := 0; i < n && r.n < r.total; i++ {
-		dst[i] *= 0.25 + 0.75*float32(r.n)/float32(r.total)
+		x := float32(r.n) / float32(r.total)
+		if r.from < 0.25 {
+			x *= x
+		}
+		dst[i] *= r.from + (1-r.from)*x
 		r.n++
 	}
 	return n, ok
@@ -428,10 +790,13 @@ func (b *webBackend) Alarms() any {
 		sn = s.Format(time.RFC3339)
 	}
 	return map[string]any{
+		"today":  now.Format(time.DateOnly), // skip dates on or after it are still to come
 		"alarms": c.List(), "next": next, "snoozed_until": sn, "ringing": b.d.ringingAlarm() != "",
 		"time_known": timeKnown(now), "snooze_minutes": int(b.d.snoozeFor().Minutes()), "max": alarms.Max,
 	}
 }
+
+func (b *webBackend) SkipAlarm(id string, skip bool) error { return b.d.alarms.skip(id, skip) }
 
 func (b *webBackend) SetAlarms(raw json.RawMessage) error {
 	var l alarms.List

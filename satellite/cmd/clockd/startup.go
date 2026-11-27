@@ -91,7 +91,8 @@ func (d *daemon) playTune(id string) bool {
 }
 
 // startupTune plays the chosen tune once after the clock has powered up: not
-// after a clockd restart (uptime over 10 minutes) and not during night mode.
+// after a clockd restart (uptime over 10 minutes), not during night mode or do
+// not disturb.
 // The clock may not know the time yet at boot, so it waits up to a minute for
 // a believable date before checking the night schedule.
 func (d *daemon) startupTune(ctx context.Context) {
@@ -119,6 +120,10 @@ func (d *daemon) startupTune(ctx context.Context) {
 	}
 	if night, _ := d.night.State(); night {
 		d.log.Info("startup sound skipped: night mode")
+		return
+	}
+	if d.dnd.On() {
+		d.log.Info("startup sound skipped: do not disturb")
 		return
 	}
 	d.log.Info("startup sound", "tune", id)

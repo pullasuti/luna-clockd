@@ -887,3 +887,42 @@ as before, and clockd runs as the same user (root) as on an unlocked clock: it s
 Cast wrappers in `/system`, not through adb. The only difference is adb: closed over USB and
 over the network (5555). So locking is the recommended last install step; updates then go
 through the web UI (signed packages), and anything adb-based needs an unlock first.
+
+## FM radio audio, for nitpickers (2026-11-23, clockd 1.6.23)
+
+Measured offline on synthetic stations through clockd's own code (the RTL-SDR stick at
+1.92 MS/s, three half-band stages to 240 kS/s, the polar discriminator, a 151-tap low-pass
+to 48 kHz, 50 us de-emphasis; the stream adds a 48 -> 32 kHz resampler). Reproduce:
+`MEASURE=1 go test -run Measure -v ./internal/fmradio ./internal/web`.
+
+- **Frequency response** (de-emphasis taken out, 1 kHz = 0 dB): -0.01 dB at 5 kHz, -0.06 dB
+  at 15 kHz, -0.11 dB at 16 kHz. With de-emphasis the curve is the standard 50 us one
+  (-12.3 dB at 15 kHz), within 0.1 dB.
+- **Clock speaker and the 48 kHz path:** that is all. **The stream (32 kHz FLAC/WAV):** the
+  resampler is flat to 14.5 kHz (+-0.03 dB), -0.9 dB at 15 kHz, -3.6 dB at 15.5 kHz; what
+  would fold back lands 47 dB down at 15 kHz, 77 dB down for the 19 kHz pilot (13 kHz).
+  32 kHz is the usual broadcast rate for 15 kHz audio: Nyquist needs more than 30 kHz, and
+  the filter needs the gap between 15 and 16 kHz to roll off.
+- **Pilot in the audio:** 84 dB below full modulation.
+- **Stereo crosstalk:** -57 to -73 dB from 100 Hz to 15 kHz (-53 dB at 16 kHz). Real
+  stations are usually the limit here, not the decoder.
+- **The 8x decimator:** flat within 0.06 dB to +-100 kHz (-0.75 dB at 110 kHz), images
+  115 dB down.
+
+**What the measuring found:** before 1.6.23 the crosstalk was -34 dB at every frequency.
+A polar discriminator measures the phase step between two samples, that is the average
+frequency over 1/240 000 s: a sinc low-pass on the multiplex signal. Harmless for the audio
+(-0.06 dB at 15 kHz), but the stereo difference signal sits on the 38 kHz subcarrier, where
+the sinc is down 0.36 dB: L-R came out 4 % weak, which is -34 dB of crosstalk. clockd now
+multiplies L-R by x / sin x (x = 2 pi 38 kHz / 240 kHz, about 1.043). The earlier stereo test
+built its test signal by sampling the multiplex signal at the sample instants, which skips
+that averaging, and so it never saw the droop; the test signal now integrates over each
+sample like a real one, and the test asks for 50 dB of separation.
+
+## Where the FM radio code comes from (2026-11-25)
+
+The radio's code went through a provenance audit before its first public release: where
+each part came from, and a comparison with librtlsdr and the Linux drivers. Its RTL2832U
+setup follows librtlsdr (GPL-2.0-or-later), which is why clockd moved to GPLv3 in 1.7.0.
+The record and the rules for new radio code are in [radio-provenance.md](radio-provenance.md).
+

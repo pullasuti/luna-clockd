@@ -160,19 +160,82 @@ darkMQ.addEventListener('change', () => { if (themeName() === 'system') applyThe
   .ibtn.tgl { color:var(--dim); }
   .ibtn.tgl.on, .ibtn.tgl:hover { color:var(--acc); }
   .usbrow.playing > .ic { color:var(--acc); }
-  #usb-bar { height:4px; border-radius:2px; background:color-mix(in srgb, var(--dim) 25%, var(--card)); margin:0 0 10px; overflow:hidden; }
-  #usb-barfill { height:100%; width:0; background:var(--acc); transition:width .9s linear; }
-  .usb-break { display:none; }
-  /* phone: track name + time on their own row, the controls below */
-  @media (max-width: 720px) {
-    #usb-nowrow { flex-wrap:wrap; row-gap:4px; }
-    #usb-now { order:-3; flex:1 1 0; min-width:0; overflow-wrap:anywhere; }
-    #usb-time { order:-2; }
-    #usb-nowrow > .usb-break { display:block; order:-1; flex:0 0 100%; height:0; }
-    #usb-nowrow { column-gap:4px; }
-    #usb-pause { margin-left:auto; }
-    #usb-pause, #usb-stop { padding-left:12px; padding-right:12px; }
-  }
+  /* Player (preview): FM + USB drive in one card */
+  #pl-bar { height:4px; border-radius:2px; background:color-mix(in srgb, var(--dim) 25%, var(--card)); margin:0 0 10px; overflow:hidden; }
+  #pl-bar.seek { height:10px; border-radius:5px; cursor:pointer; }
+  #pl-barfill { height:100%; width:0; background:var(--acc); transition:width .9s linear; }
+  .pl-now { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:10px 0 6px; }
+  .pl-t { flex:1 1 160px; min-width:0; display:flex; flex-direction:column; }
+  .pl-t b { font-size:17px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pl-t span { color:var(--dim); font-size:13px; }
+  .pl-art { width:64px; height:64px; flex:none; border-radius:8px; object-fit:cover; background:var(--line); box-shadow:0 1px 6px rgba(0,0,0,.3); }
+  .lib-top { display:flex; align-items:center; gap:6px; margin:12px 0 8px; }
+  .lib-top .seg { flex:1; margin:0; }
+  .lib-q { display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:9px; padding:0 10px; background:var(--bg); }
+  .lib-q .ic { color:var(--dim); flex:none; }
+  .lib-q input { border:0; background:transparent; padding:9px 0; margin:0; flex:1; min-width:0; box-shadow:none; outline:none; }
+  .lib-crumbs { margin:10px 0 6px; font-size:14px; min-height:20px; }
+  .lib-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(132px, 1fr)); gap:14px 12px; }
+  @media (max-width:560px) { .lib-grid { grid-template-columns:repeat(auto-fill, minmax(100px, 1fr)); gap:12px 10px; } }
+  .lib-alb { display:flex; flex-direction:column; text-align:left; background:none; border:0; padding:0; color:var(--fg); font:inherit; cursor:pointer; min-width:0; }
+  .lib-alb b { font-size:14px; font-weight:600; margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lib-alb > span:last-child { font-size:12px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lib-alb.playing b { color:var(--acc); }
+  .lib-cov { position:relative; display:grid; place-items:center; aspect-ratio:1; border-radius:8px; overflow:hidden; color:var(--dim); background:color-mix(in srgb, var(--dim) 16%, var(--card)); }
+  .lib-cov img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .lib-cov .ic { width:30px; height:30px; opacity:.55; }
+  .lib-alb:hover .lib-cov, .lib-alb:focus-visible .lib-cov { outline:2px solid var(--acc); outline-offset:2px; }
+  .lib-alb:focus-visible { outline:none; }
+  .lib-head { display:flex; gap:16px; align-items:flex-end; margin:4px 0 12px; }
+  .lib-head .lib-cov { width:140px; flex:none; }
+  .lib-h { margin:0 0 4px; font-size:20px; font-weight:650; line-height:1.25; overflow-wrap:anywhere; }
+  .lib-head .actions { margin-top:10px; }
+  @media (max-width:560px) { .lib-head { gap:12px; } .lib-head .lib-cov { width:104px; } .lib-h { font-size:17px; } }
+  .lib-row { display:flex; align-items:center; gap:10px; padding:7px 8px; margin:0 -8px; border-radius:6px; cursor:pointer; border-bottom:1px solid var(--line); }
+  .lib-row:hover, .lib-row:focus-visible { background:color-mix(in srgb, var(--acc) 8%, var(--card)); outline:none; }
+  .lib-n { width:24px; flex:none; text-align:right; color:var(--dim); font-size:13px; font-variant-numeric:tabular-nums; }
+  .lib-tt { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .lib-tt b { font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lib-tt span { font-size:12px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lib-d { flex:none; color:var(--dim); font-size:13px; font-variant-numeric:tabular-nums; }
+  .lib-row.playing b, .lib-row.playing .lib-n { color:var(--acc); }
+  .lib-more { margin-top:12px; }
+  #al-usblist { max-height:260px; overflow-y:auto; margin:6px 0; padding:0 8px; }
+  #al-usblist .lib-row.playing { background:color-mix(in srgb, var(--acc) 8%, var(--card)); }
+  .pl-other { display:flex; align-items:center; gap:10px; padding:8px 10px; margin:0 0 12px; border:1px solid var(--line); border-radius:8px; }
+  .pl-other > .ic { flex:none; color:var(--dim); }
+  .pl-other .pl-t b { font-size:14px; }
+  .pl-opts { display:flex; align-items:center; gap:6px; margin:4px 0 6px; }
+  /* the Audio tab says something plays (on the clock or in this browser) */
+  nav button[data-tab=audio] { position:relative; }
+  nav button[data-tab=audio].np::after { content:""; position:absolute; top:7px; right:6px; width:6px; height:6px; border-radius:50%; background:var(--acc); }
+  body[data-style=luna] nav button[data-tab=audio].np::after { background:var(--lit); box-shadow:var(--glow-s); }
+  .pl-disp { display:inline-flex; align-items:baseline; gap:6px; }
+  .pl-disp .s7 { height:30px !important; }
+  .pl-disp .unit { color:var(--dim); font-size:13px; }
+  .pl-big { font-size:28px; font-weight:600; font-variant-numeric:tabular-nums; }
+  /* the band: a recessed box, one bar per station (height = signal) lighting it */
+  .pl-dial { position:relative; height:96px; border-radius:12px; overflow:hidden; cursor:pointer; touch-action:pan-y; user-select:none;
+    background:color-mix(in srgb, var(--fg) 6%, var(--card)); box-shadow:inset 0 2px 6px rgba(0,0,0,.18); }
+  .pl-dial u { position:absolute; bottom:26px; width:7px; margin-left:-3.5px; border-radius:3px 3px 1px 1px; background:var(--acc); pointer-events:none; }
+  .pl-dial u.weak { opacity:.4; }
+  /* a floor in front of the bars and each bar's reflection on it (gradients
+     only: no blur filters) */
+  .pl-dial::before { content:""; position:absolute; left:0; right:0; bottom:0; height:26px; pointer-events:none;
+    border-top:1px solid color-mix(in srgb, var(--fg) 10%, transparent); background:linear-gradient(color-mix(in srgb, var(--fg) 5%, transparent), transparent); }
+  .pl-dial u::after { content:""; position:absolute; left:0; right:0; top:100%; margin-top:2px; height:min(60%, 22px); border-radius:1px 1px 3px 3px;
+    background:linear-gradient(color-mix(in srgb, currentColor 30%, transparent), transparent); color:var(--acc); }
+  .pl-needle { position:absolute; top:4px; bottom:4px; width:2px; margin-left:-1px; border-radius:1px; background:var(--acc); box-shadow:0 0 6px var(--acc); pointer-events:none; }
+  .pl-scale { position:relative; height:16px; font-size:12px; color:var(--dim); margin:3px 10px 0; }
+  .pl-scale span { position:absolute; transform:translateX(-50%); }
+  .pl-favs { display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:6px; margin-top:8px; }
+  @media (max-width:560px) { .pl-favs { grid-template-columns:repeat(3, minmax(0, 1fr)); } }
+  .pl-fav { min-height:44px; padding:6px 4px; border:1px solid var(--line); border-radius:10px; background:transparent; color:var(--fg); font:inherit; font-size:15px; cursor:pointer; text-align:center; }
+  .pl-fav small { display:block; font-size:12px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pl-fav.sel { border-color:var(--acc); } .pl-fav.empty { color:var(--dim); }
+  .pl-fav:disabled { opacity:.45; cursor:not-allowed; }
+  .pl-star.on { color:var(--acc); } .pl-star.on .ic { fill:currentColor; }
+  .al-skip.on { color:var(--acc); }
   .crumb { background:none; border:0; padding:0; color:var(--acc); font:inherit; cursor:pointer; }
 .meter { position: relative; height: 10px; border-radius: 5px; background: rgba(127,127,127,.2); overflow: hidden; margin-top: 6px; }
 #mic-rms { height: 100%; width: 0; background: var(--acc); transition: width .15s; }
@@ -628,6 +691,30 @@ body[data-style=luna] label.tgl:has(input:checked) .ic { color:var(--fg); }
 html[data-scheme=light] body[data-style=luna] label.tgl:has(input:checked) { background:color-mix(in srgb, var(--acc) 7%, var(--card)); border-color:color-mix(in srgb, var(--acc) 45%, var(--line)); }
 /* segmented = a dark slot; the chosen segment carries a glowing light strip */
 body[data-style=luna] .seg { border-radius:10px; background:var(--well); box-shadow:inset 0 1px 3px rgba(0,0,0,.35); }
+body[data-style=luna] .pl-dial { background:linear-gradient(#010102, #050608 60%, #08090c);
+  box-shadow:inset 0 4px 12px #000, inset 0 -1px 0 rgba(255,255,255,.07), inset 0 0 0 1px rgba(0,0,0,.7); }
+body[data-style=luna] .pl-dial u { background:var(--lit);
+  box-shadow:0 0 4px rgba(255,255,255,.9), 0 0 14px 1px rgba(255,255,255,.2), 0 0 34px 8px rgba(255,255,255,.07); }
+/* piano black: a gloss floor without an edge, blurred reflections and a pool
+   of light under each bar (the blurs go with Glow off) */
+body[data-style=luna] .pl-dial::before { border-top:0; height:30px;
+  background:linear-gradient(transparent, rgba(255,255,255,.05) 4px, rgba(255,255,255,.018) 45%, transparent); }
+body[data-style=luna] .pl-dial u::after { left:-1px; right:-1px; margin-top:3px; height:min(70%, 26px);
+  background:linear-gradient(rgba(255,255,255,.65), rgba(255,255,255,.16) 45%, transparent); filter:blur(1.4px); }
+body[data-style=luna] .pl-dial u.weak::after { opacity:.5; }
+body[data-style=luna] .pl-dial u::before { content:""; position:absolute; left:50%; bottom:-9px; width:44px; height:16px; margin-left:-22px;
+  border-radius:50%; background:radial-gradient(ellipse at center, rgba(255,255,255,.26), transparent 70%); filter:blur(3px); }
+body[data-style=luna] .pl-dial u.weak::before { opacity:.35; }
+body[data-glow=off] .pl-dial u::after, body[data-glow=off] .pl-dial u::before { filter:none; }
+html[data-scheme=light] body[data-style=luna] .pl-dial u::before { display:none; }
+html[data-scheme=light] body[data-style=luna] .pl-dial u::after { filter:none; background:linear-gradient(color-mix(in srgb, var(--lit) 30%, transparent), transparent); }
+html[data-scheme=light] body[data-style=luna] .pl-dial u::after { color:var(--lit); }
+body[data-style=luna] .pl-dial u.weak { opacity:1; background:rgba(255,255,255,.42); box-shadow:0 0 22px 5px rgba(255,255,255,.07); }
+body[data-style=luna] .pl-needle { box-shadow:0 0 6px var(--acc), 0 0 26px 6px color-mix(in srgb, var(--acc) 35%, transparent); }
+html[data-scheme=light] body[data-style=luna] .pl-dial { background:var(--well); box-shadow:inset 0 2px 6px rgba(0,0,0,.18); }
+html[data-scheme=light] body[data-style=luna] .pl-dial u { box-shadow:none; }
+html[data-scheme=light] body[data-style=luna] .pl-dial u.weak { background:var(--lit); opacity:.4; }
+body[data-glow=off] .pl-dial u, body[data-glow=off] .pl-needle { box-shadow:none !important; }
 body[data-style=luna] .seg button { position:relative; color:#8d929b; }
 body[data-style=luna] .seg button:hover { color:#e8eaee; background:rgba(255,255,255,.04); }
 body[data-style=luna] .seg button.on { color:#f3f4f6; background:rgba(255,255,255,.07); box-shadow:none; }
@@ -734,6 +821,7 @@ body[data-glow=off] #clock .s7 .on, body[data-glow=off] .dial rect.on, body[data
 <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" /> <circle cx="12" cy="12" r="3" /></symbol>
 <symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" /></symbol>
 <!-- skip-back / skip-forward / shuffle / repeat / repeat-1: Lucide (ISC), like the other i- symbols -->
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" /></symbol>
 <symbol id="i-skip-back" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20" /><line x1="5" x2="5" y1="19" y2="5" /></symbol>
 <symbol id="i-skip-forward" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4" /><line x1="19" x2="19" y1="5" y2="19" /></symbol>
 <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.8-1.1 2-1.7 3.3-1.7H22" /><path d="m18 2 4 4-4 4" /><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2" /><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8" /><path d="m18 14 4 4-4 4" /></symbol>
@@ -1018,7 +1106,7 @@ body[data-glow=off] #clock .s7 .on, body[data-glow=off] .dial rect.on, body[data
   <section id="tab-alarms" hidden>
     <div class="grid">
       <div class="card" data-group="Alarms" data-icon="alarm-clock"><h2>Alarms</h2>
-        <div class="ha-state"><span class="pill" id="al-pill">checking…</span><span class="hint" id="al-sub"></span></div>
+        <div class="ha-state"><span class="pill" id="al-pill">checking…</span><span class="hint" id="al-sub"></span><button class="btn quiet" type="button" id="al-unsnooze" hidden>Cancel snooze</button></div>
         <div class="tunes" id="al-list" role="list" aria-label="Alarms"></div>
         <div class="actions" id="al-addrow"><button class="btn sec" type="button" id="al-add">Add alarm</button></div>
         <div id="al-edit" hidden>
@@ -1032,7 +1120,15 @@ body[data-glow=off] #clock .s7 .on, body[data-glow=off] .dial rect.on, body[data
           <input id="al-label" maxlength="40" placeholder="e.g. Work">
           <label class="set"><span class="set-t"><span class="set-n">Sunrise light</span><span class="set-d">The night light comes up over 10 minutes before the alarm, if the room is dark</span></span><input type="checkbox" id="al-sun"></label>
           <label for="al-sound">Sound</label>
-          <select id="al-sound"><option value="">Same as timers</option><option value="gentle">Gentle beeps</option><option value="chime">Chime</option><option value="classic">Classic beeps</option><option value="urgent">Urgent beeps</option><option value="morning">Morning Mood (Grieg)</option><option value="birds">Birdsong</option><option value="bells">Westminster bells</option><option value="reveille">Reveille (bugle)</option><option value="rise">Rising chord</option><option value="cuckoo">Cuckoo</option></select>
+          <select id="al-sound" aria-describedby="al-fmhint"><option value="">Same as timers</option><option value="gentle">Gentle beeps</option><option value="chime">Chime</option><option value="classic">Classic beeps</option><option value="urgent">Urgent beeps</option><option value="morning">Morning Mood (Grieg)</option><option value="birds">Birdsong</option><option value="bells">Westminster bells</option><option value="reveille">Reveille (bugle)</option><option value="rise">Rising chord</option><option value="cuckoo">Cuckoo</option></select>
+          <label>Fade in</label>
+          <select id="al-fade" data-seg><option value="0" data-short="Quick">Quick: louder over 30 seconds</option><option value="1">1 min</option><option value="2">2 min</option><option value="3">3 min</option></select>
+          <div class="hint" id="al-fmhint" hidden>The radio plays the station at the alarm time. Without the stick (or with it in use for a station search) the alarm rings with the timer sound.</div>
+          <div id="al-usb" hidden>
+            <input id="al-usbq" type="search" placeholder="Find a song on the USB drive" aria-label="Find a song on the USB drive">
+            <div id="al-usblist" role="listbox" aria-label="Songs"></div>
+            <div class="hint">The song plays from the USB drive and repeats until you stop the alarm. If the drive or the song isn't there, or the song doesn't start within 3 seconds, the alarm rings with the timer sound.</div>
+          </div>
           <div class="actions"><button class="btn sec" type="button" id="al-play">Play sound</button></div>
           <div class="actions">
             <button class="btn" type="button" id="al-save">Save alarm</button>
@@ -1045,9 +1141,9 @@ body[data-glow=off] #clock .s7 .on, body[data-glow=off] .dial rect.on, body[data
           <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option>
         </select>
         <div class="hint">While it rings: the alarm button or "stop" stops it, any other button snoozes it. <span class="q" role="button" tabindex="0" aria-label="More about this" aria-expanded="false">?</span></div>
-        <div class="hint set-help" hidden>The sound starts quieter and reaches full volume in 30 seconds, and rings for up to 5 minutes. Alarms work without Home Assistant, but the clock has no battery-backed clock: after a power cut nothing rings until it has the time again. After a sunrise alarm the light stays on: a short press of the alarm button turns it off (or it goes off by itself after 30 minutes).</div>
+        <div class="hint set-help" hidden>The sound starts quieter and reaches full volume in 30 seconds, and rings for up to 5 minutes. Alarms work without Home Assistant, but the clock has no battery-backed clock: after a power cut nothing rings until it has the time again. After a sunrise alarm the light stays on: a short press of the alarm button turns it off (or it goes off by itself after 30 minutes). Snoozing shows the minutes on the face; pressing a button again while they show makes it 5 minutes longer (10, 15, 20, then 5 again). The skip button next to a repeating alarm leaves out its next ring only.</div>
         <div class="subhead">On the clock</div>
-        <div class="hint">A short press of the alarm button shows the next alarm; volume up and down step through the others. Hold the alarm button for 2 seconds to set the alarm shown, or a new one: volume up and down change the blinking part, a short alarm press goes on to the next part (repeat, hours, minutes, AM/PM) and saves after the last. To delete the alarm shown, press the alarm button and volume down together briefly.</div>
+        <div class="hint">A short press of the alarm button shows the next alarm; volume up and down step through the others. Hold the alarm button for 2 seconds to set the alarm shown, or a new one: volume up and down change the blinking part, a short alarm press goes on to the next part (repeat, hours, minutes, AM/PM) and saves after the last. To delete the alarm shown, press the alarm button and volume down together briefly. The action button skips the next ring of the alarm shown ("skip"; again: "on"), or switches a one-time alarm on and off.</div>
       </div>
       <div class="card" data-group="Timers" data-icon="timer"><h2>Timers</h2>
         <label for="tm-sound">Timer sound</label>
@@ -1075,6 +1171,21 @@ body[data-glow=off] #clock .s7 .on, body[data-glow=off] .dial rect.on, body[data
         <div id="sl-timers" class="seg sl-seg" role="radiogroup" aria-label="Sleep timer"></div>
         <div class="hint" id="sl-left"></div>
         <div class="hint">Made on the clock, no Home Assistant or files needed. The timer fades out whatever plays (sleep sound, USB, Home Assistant, Music Assistant) over its last minute, then stops it. Both are also on the clock's Home Assistant device page.</div>
+      </div>
+      <div class="card" data-group="Speaker" data-icon="moon"><h2>Do not disturb</h2>
+        <label class="set"><span class="set-t"><span class="set-n">Do not disturb now</span><span class="set-d" id="dndhint">Overrides the schedule until it next starts or ends</span></span><input type="checkbox" id="dndnow"></label>
+        <div class="subhead">Schedule</div>
+        <select name="dnd.schedule" data-seg>
+          <option value="none" data-short="By hand">Only by hand</option>
+          <option value="night" data-short="Night mode">While night mode is on</option>
+          <option value="times" data-short="Own times">Between own times</option>
+        </select>
+        <div class="row" id="dndtimes">
+          <div><label>From</label><input type="time" name="dnd.start"></div>
+          <div><label>To</label><input type="time" name="dnd.end"></div>
+        </div>
+        <div class="hint">Silences what the clock sounds on its own: the hourly chime, the wake sound, Home Assistant's announcements and the startup sound. Alarms, timers and answers to you always sound. <span class="q" role="button" tabindex="0" aria-label="More about this" aria-expanded="false">?</span></div>
+        <div class="hint set-help" hidden>The status LEDs still show the assistant listening when the wake sound is silent. Skipped announcements count as played for Home Assistant, so its automations carry on. The same as the "Do not disturb" switch in Home Assistant.</div>
       </div>
       <div class="card" data-group="Speaker" data-icon="bell"><h2>Hourly chime</h2>
         <select name="chime.sound" hidden><option value="">Off</option><option value="soft">Soft bell</option><option value="twonote">Two notes</option><option value="knock">Wood knock</option><option value="count">Bell count</option><option value="ships">Ship&#39;s bells</option><option value="cuckoo">Cuckoo</option><option value="westminster">Big Ben</option></select>
@@ -1196,6 +1307,100 @@ body[data-glow=off] #clock .s7 .on, body[data-glow=off] .dial rect.on, body[data
         <div class="hint set-help" hidden>The clock is a Sendspin player. Restart it under System → Device.</div>
         <div class="hint" id="sshint"></div>
       </div>
+      <div class="card" data-group="Streaming" data-icon="play"><h2>Player</h2>
+        <div class="pl-other" id="pl-other" hidden><svg class="ic"><use href="#i-music"/></svg><div class="pl-t"><b id="pl-other-t"></b><span id="pl-other-s"></span></div><button type="button" class="btn quiet" id="pl-other-stop" style="flex:0 0 auto">Stop</button></div>
+        <div class="seg" id="pl-src" role="radiogroup" aria-label="Source"><button type="button" role="radio" data-v="usb">USB drive</button><button type="button" role="radio" data-v="fm">FM radio</button></div>
+        <div class="pl-now" id="pl-now">
+          <img class="pl-art" id="pl-art" alt="" hidden>
+          <span class="pl-disp" id="pl-disp"></span>
+          <div class="pl-t"><b id="pl-name"></b><span id="pl-sub"></span></div>
+          <button type="button" class="ibtn" id="pl-prev" aria-label="Previous" title="Previous"><svg class="ic"><use href="#i-skip-back"/></svg></button>
+          <button type="button" class="ibtn" id="pl-next" aria-label="Next" title="Next"><svg class="ic"><use href="#i-skip-forward"/></svg></button>
+          <button type="button" class="btn sec" id="pl-pause" style="flex:0 0 auto" hidden>Pause</button>
+          <button type="button" class="btn sec" id="pl-play" style="flex:0 0 auto" hidden>Play</button>
+          <button type="button" class="btn quiet" id="pl-stop" style="flex:0 0 auto" hidden>Stop</button>
+        </div>
+        <div id="pl-bar" hidden><div id="pl-barfill"></div></div>
+        <div id="pl-out">
+        <div class="subhead">Plays on</div>
+        <div class="tgls">
+          <label class="tgl"><input type="checkbox" id="pl-spk"><svg class="ic"><use href="#i-volume-2"/></svg><span>Clock speaker</span></label>
+          <label class="tgl"><input type="checkbox" id="pl-here"><svg class="ic"><use href="#i-monitor-smartphone"/></svg><span>This device</span></label>
+        </div>
+        <div class="srow" id="pl-volrow"><label>Clock volume <span id="pl-volv"></span></label><input type="range" id="pl-vol" min="0" max="100" step="1" aria-label="Clock volume"></div>
+        <div class="hint" id="pl-outhint"></div>
+        </div>
+        <div id="pl-nofm" hidden>
+          <div class="pl-t" style="margin:14px 0 6px"><b>FM radio needs a USB radio stick</b><span>The clock tunes the stick itself: no internet, no Home Assistant needed.</span></div>
+          <div class="subhead">What you need</div>
+          <div class="tunes" role="list">
+            <div class="tunerow" role="listitem"><span class="tunename"><b>An RTL-SDR stick: RTL2832U + R820T / R820T2</b><span>The common, cheap kind (often sold as RTL2838 / "RTL-SDR"), with its small antenna</span></span></div>
+          </div>
+          <div class="hint">Plug it into the clock's USB socket and switch System › USB to USB drive. Stations, favourites, the band dial and radio alarms appear here then. Other receivers (RTL-SDR Blog V4 and others) are not supported yet: <a href="#audio/fm-radio" data-go="audio/fm-radio">Audio › FM radio</a> has the details.</div>
+        </div>
+        <div id="pl-fm">
+          <div class="subhead">Band</div>
+          <div class="pl-dial" id="pl-dial" role="slider" aria-label="Frequency" tabindex="0"></div>
+          <div class="pl-scale" id="pl-scale"></div>
+          <div class="hint">Tap a station or drag sideways to tune; ← → step 0.1 MHz; Previous / Next step through the stations found. Bars: stations from the last search, taller = stronger.</div>
+          <div class="subhead">Favourites</div>
+          <div class="pl-favs" id="pl-favs"></div>
+          <div class="hint">Star a station to pin it (six at most). Home Assistant's FM radio list shows the favourites when there are any.</div>
+          <div class="subhead">Stations found</div>
+          <div class="tunes" id="pl-list" role="list"></div>
+          <div class="actions"><button class="btn sec" type="button" id="pl-search">Find stations</button></div>
+        </div>
+        <div id="pl-usb" hidden>
+          <div class="lib-top">
+            <div class="seg" id="lib-view" role="radiogroup" aria-label="Library view"><button type="button" role="radio" data-v="albums">Albums</button><button type="button" role="radio" data-v="artists">Artists</button><button type="button" role="radio" data-v="songs">Songs</button><button type="button" role="radio" data-v="folders">Folders</button></div>
+            <button type="button" class="ibtn tgl" id="usb-shuffle" aria-label="Shuffle" title="Shuffle"><svg class="ic"><use href="#i-shuffle"/></svg></button>
+            <button type="button" class="ibtn tgl" id="usb-repeat" aria-label="Repeat" title="Repeat"><svg class="ic"><use href="#i-repeat"/></svg></button>
+          </div>
+          <div class="lib-q"><svg class="ic"><use href="#i-search"/></svg><input id="lib-q" type="search" placeholder="Filter: artist, album or song" aria-label="Filter the library" autocomplete="off"></div>
+          <div class="lib-crumbs" id="lib-crumbs"></div>
+          <div class="hint" id="lib-note"></div>
+          <div id="lib-body"></div>
+          <div id="lib-folders" hidden>
+            <div id="usb-crumbs" class="hint" style="margin-bottom:8px"></div>
+            <div id="usb-files"></div>
+            <div class="hint">The drive as it is, file by file. Playing a file plays the rest of its folder after it.</div>
+          </div>
+        </div>
+        <audio id="pl-audio" preload="none"></audio>
+        <audio id="pl-uaudio" preload="auto"></audio>
+      </div>
+      <div class="card" data-group="Streaming" data-icon="audio-lines"><h2>FM radio</h2>
+        <div class="ha-state"><span class="pill" id="rd-pill">checking…</span><span class="hint" id="rd-sub"></span></div>
+        <div class="hint">Stations and playing: the Player card. Here: the stick, the stream link and the tuner settings.</div>
+        <div class="subhead">Stream link</div>
+        <div class="row">
+          <input id="rd-link" readonly style="font-family:ui-monospace,monospace">
+          <button class="btn sec" type="button" id="rd-copy" style="flex:0 0 auto">Copy</button>
+        </div>
+        <div class="hint">For Home Assistant, Music Assistant or any player on your network. <span class="q" role="button" tabindex="0" aria-label="More about this" aria-expanded="false">?</span></div>
+        <div class="hint set-help" hidden>The link plays what the clock's radio plays, as a FLAC stream (lossless at 32 kHz, which holds all of FM's sound; about 0.8 Mbit/s, so for your own network). A player that can't take FLAC gets WAV (1.5 Mbit/s) with .wav in place of .flac. When the clock plays nothing, the link starts a station of its own without the clock's speaker: add <code>?mhz=91.2</code> to pick it, otherwise it takes the last station. One stick tunes one station, so a link can't change the station the clock is playing. Stop ends the radio for everyone. Anyone with the link can listen: <button class="btn quiet" type="button" id="rd-newlink">New link</button> makes a new one and cuts off the old.</div>
+        <div class="subhead">Region</div>
+        <select name="radio.region" data-seg>
+          <option value="europe" data-short="Europe">Europe and most of the world</option>
+          <option value="americas" data-short="Americas">The Americas and South Korea</option>
+          <option value="japan" data-short="Japan">Japan</option>
+        </select>
+        <div class="subhead">Reception</div>
+        <select name="radio.reception" data-seg>
+          <option value="weak" data-short="Weak">Weak: stations far away</option>
+          <option value="normal" data-short="Normal">Normal</option>
+          <option value="strong" data-short="Strong">Strong: a transmitter nearby</option>
+        </select>
+        <div class="hint">Weak gives the tuner more gain; Strong less, for when stations bleed into each other. Both apply from the next station played, and a new search finds stations with them.</div>
+        <div class="subhead">Supported sticks</div>
+        <div class="tunes" role="list">
+          <div class="tunerow" role="listitem"><span class="tunename"><b>RTL2832U + R820T / R820T2</b><span>Tested: a generic RTL2838UHIDIR stick (USB 0bda:2838)</span></span></div>
+        </div>
+        <div class="hint">The radio is experimental. Other receivers (RTL-SDR Blog V4 / R828D, E4000, FC0013 and others) are not supported yet: the clock then says the stick's tuner is not supported. <span class="q" role="button" tabindex="0" aria-label="More about this" aria-expanded="false">?</span></div>
+        <div class="hint set-help" hidden>The clock drives the stick itself, without vendor drivers, so each receiver chip needs its own small piece of code. The radio is being split up so that support for a new receiver can come as a self-contained addition: if you have another stick and would like to help, open an issue or a pull request on <a href="https://github.com/pullasuti/luna-clockd" target="_blank" rel="noopener">GitHub</a>.</div>
+        <div class="hint">Needs a supported stick in the USB socket, with System › USB on USB drive (on an unlocked clock a restart switches the socket back to adb). <span class="q" role="button" tabindex="0" aria-label="More about this" aria-expanded="false">?</span></div>
+        <div class="hint set-help" hidden>The clock tunes the stick itself, no internet or Home Assistant needed. The region sets the band (Japan: 76-95 MHz) and the de-emphasis (75 µs in the Americas, 50 µs elsewhere). Find stations searches the band in about half a minute and lists the stations that come in in stereo. A station's name (RDS) shows once it has played for a few seconds. Stereo fades to mono when the signal is weak, which keeps it free of hiss. Volume, the stop word and the sleep timer work as for any music. Home Assistant can start a station too: play media with the id fm:91.2. This device in the Player plays the radio in this browser.</div>
+      </div>
       <div class="card" data-group="Voice" data-icon="audio-lines"><h2>Wake word</h2>
         <div id="wakelist"></div>
         <div class="hint">Up to two at a time. Home Assistant can also switch them from the device page. <a href="#audio/more-wake-words" data-go="audio/more-wake-words">More wake words…</a></div>
@@ -1210,6 +1415,8 @@ body[data-glow=off] #clock .s7 .on, body[data-glow=off] .dial rect.on, body[data
         <div class="hint">Used while the clock plays sound. <span class="q" role="button" tabindex="0" aria-label="More about this" aria-expanded="false">?</span></div>
         <div class="hint set-help" hidden>The clock's own sound partly drowns your voice; one step more sensitive while it plays helps. When music plays and the clock thinks it may have heard the word, it also turns the music down for about 4 seconds: if it didn't answer, just say it again. Attempts made then are marked ♪ below.</div>
         <label class="set"><span class="set-t"><span class="set-n">Wake sound</span><span class="set-d">A chime after the wake word</span></span><input type="checkbox" name="voice.wake_sound"></label>
+        <label class="set"><span class="set-t"><span class="set-n">Nearest clock answers <span class="q" role="button" tabindex="0" aria-label="More about this" aria-expanded="false">?</span></span><span class="set-d">When several clocks hear you, the one that heard you best replies</span></span><input type="checkbox" name="voice.wake_vote"></label>
+        <div class="hint set-help" hidden>The clocks that heard the wake word compare how clearly they heard it (your voice over the room's noise) and only the best one answers; the others stay quiet. It takes a fifth of a second and works between clocks on the same network. Switched off, Home Assistant still lets only one clock answer: the one whose request reached it first.</div>
         <h3>Recent attempts</h3>
         <div class="hint" id="wh-sum"></div>
         <div class="pv" id="wstrip-wrap" hidden><div class="wstrip" id="wstrip"></div><div class="pv-cap">Each dot is an attempt (filled: heard, hollow: near miss, ring: while the clock played sound). Lines: where each sensitivity triggers.</div></div>
@@ -1391,23 +1598,7 @@ body[data-glow=off] #clock .s7 .on, body[data-glow=off] .dial rect.on, body[data
           <button type="button" role="radio" data-v="adb">adb</button><button type="button" role="radio" data-v="host">USB drive</button>
         </div>
         <div class="hint seghint" id="usb-modehint"></div>
-        <div id="usb-drive" hidden>
-          <div class="subhead">Drive contents</div>
-          <div id="usb-crumbs" class="hint" style="margin-bottom:8px"></div>
-          <div class="row" id="usb-nowrow" hidden style="margin:0 0 8px">
-            <button type="button" class="ibtn tgl" id="usb-shuffle" aria-label="Shuffle" title="Shuffle"><svg class="ic"><use href="#i-shuffle"/></svg></button>
-            <button type="button" class="ibtn" id="usb-prev" aria-label="Previous file" title="Previous file"><svg class="ic"><use href="#i-skip-back"/></svg></button>
-            <button type="button" class="ibtn" id="usb-next" aria-label="Next file" title="Next file"><svg class="ic"><use href="#i-skip-forward"/></svg></button>
-            <button type="button" class="ibtn tgl" id="usb-repeat" aria-label="Repeat" title="Repeat"><svg class="ic"><use href="#i-repeat"/></svg></button>
-            <span class="hint" id="usb-now" style="flex:1"></span>
-            <span class="hint" id="usb-time" style="flex:0 0 auto"></span>
-            <span class="usb-break" aria-hidden="true"></span>
-            <button type="button" class="btn sec" id="usb-pause" style="flex:0 0 auto">Pause</button>
-            <button type="button" class="btn quiet" id="usb-stop" style="flex:0 0 auto">Stop</button>
-          </div>
-          <div id="usb-bar" hidden><div id="usb-barfill"></div></div>
-          <div id="usb-files"></div>
-        </div>
+        <div id="usb-drive" class="hint" hidden style="margin-top:10px">Its music: <a href="#audio/player" data-go="audio/player">Audio › Player</a>.</div>
         <div class="hint"><span id="usb-help-short">One socket: a USB drive and adb over a cable exclude each other. A restart always returns to adb.</span> <span class="q" role="button" tabindex="0" aria-label="More about this" aria-expanded="false">?</span></div>
         <div class="hint set-help" hidden>Switching to a USB drive moves the socket to host mode and mounts the drive read-only (FAT and ext2-4). Nothing on the clock runs anything from the drive. A drive can be plugged in or pulled out at any time while the socket is on USB drive. Switching back to adb is possible once nothing is plugged in. Switching takes a few seconds either way. exFAT and NTFS drives are not supported.</div>
       </div>
@@ -1570,12 +1761,13 @@ body[data-glow=off] #clock .s7 .on, body[data-glow=off] .dial rect.on, body[data
           <span><a href="https://github.com/esphome/micro-wake-word-models" target="_blank" rel="noopener">microWakeWord</a></span><span>wake word models · Apache-2.0</span>
           <span><a href="https://github.com/mewkiz/flac" target="_blank" rel="noopener">flac</a></span><span>FLAC playback · Unlicense</span>
           <span><a href="https://github.com/hajimehoshi/go-mp3" target="_blank" rel="noopener">go-mp3</a></span><span>MP3 playback · Apache-2.0</span>
+          <span><a href="https://osmocom.org/projects/rtl-sdr" target="_blank" rel="noopener">librtlsdr</a></span><span>FM radio stick setup · GPL-2.0+</span>
           <span><a href="https://busybox.net" target="_blank" rel="noopener">BusyBox</a> 1.38.0</span><span>shell tools · GPL-2.0</span>
           <span><a href="https://matt.ucc.asn.au/dropbear/dropbear.html" target="_blank" rel="noopener">Dropbear</a> 2026.94</span><span>ssh, key-only · MIT</span>
           <span><a href="https://www.netfilter.org/projects/iptables/" target="_blank" rel="noopener">iptables</a> 1.8.10</span><span>setup hotspot firewall · GPL-2.0</span>
         </div>
         <div class="actions"><a class="btn sec" href="https://github.com/pullasuti/luna-clockd" target="_blank" rel="noopener">Source on GitHub</a></div>
-        <div class="hint">Not affiliated with Lenovo or Google.</div>
+        <div class="hint">clockd is free software under the GNU GPL version 3 or later. Not affiliated with Lenovo or Google.</div>
       </div>
     </div>
   </section>
@@ -1586,8 +1778,9 @@ body[data-glow=off] #clock .s7 .on, body[data-glow=off] .dial rect.on, body[data
       <a href="https://gitlab.freedesktop.org/pulseaudio/webrtc-audio-processing" target="_blank" rel="noopener">WebRTC audio processing</a> (BSD-3) and
       <a href="https://github.com/esphome/micro-wake-word-models" target="_blank" rel="noopener">microWakeWord</a> models (Apache-2.0),
       <a href="https://github.com/mewkiz/flac" target="_blank" rel="noopener">flac</a> (Unlicense) and
-      <a href="https://github.com/hajimehoshi/go-mp3" target="_blank" rel="noopener">go-mp3</a> (Apache-2.0).
-      Not affiliated with Lenovo or Google.</span>
+      <a href="https://github.com/hajimehoshi/go-mp3" target="_blank" rel="noopener">go-mp3</a> (Apache-2.0); the FM radio
+      stick setup follows <a href="https://osmocom.org/projects/rtl-sdr" target="_blank" rel="noopener">librtlsdr</a> (GPL-2.0+).
+      clockd: GPL-3.0-or-later. Not affiliated with Lenovo or Google.</span>
   </footer>
 </main>
 <div id="approve-bar" role="alertdialog" aria-live="assertive" hidden>
@@ -1746,7 +1939,7 @@ function showTab(name, slug) {
   $$('nav button').forEach(x => x.classList.toggle('on', x.dataset.tab === name));
   $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + name);
   if (name === 'system') { loadLogs(); loadSessions(); loadWifi(); loadUpdate(); loadUSB(); loadSSH(); }
-  if (name === 'audio') { wakeHist(); loadDLNA(); }
+  if (name === 'audio') { wakeHist(); loadDLNA(); loadRadio(); }
   if (name === 'alarms') loadAlarms();
   showSub(name, slug);
 }
@@ -1984,7 +2177,7 @@ function applyStyle() {
 }
 // slider value labels: digits when Luna + "Everywhere". The code keeps writing plain text
 // (textContent); an observer swaps it for digits and keeps the text in data-raw.
-const VALS = ['#brminv', '#brv', '#ledbv', '#nlv', '#nbv', '#dlv', '#volv', '#scval', '#mgval', '#chvv'].map(id => $(id));
+const VALS = ['#brminv', '#brv', '#ledbv', '#nlv', '#nbv', '#dlv', '#volv', '#pl-volv', '#scval', '#mgval', '#chvv'].map(id => $(id));
 function valDigits(el) {
   const mine = !!el.querySelector('.s7');  // digits are ours; plain text is fresh from the page code
   if (!mine) el.dataset.raw = el.textContent;
@@ -2108,6 +2301,7 @@ $$('.tunerow:not(.chrow)').forEach(r => {
 $$('[data-play]').forEach(b => b.onclick = () => act_('startup_preview', b.dataset.play));
 
 // ---- hourly chime (radio rows over a hidden select, as the startup sound) ----
+function dndUI() { $('#dndtimes').hidden = $('[name="dnd.schedule"]').value !== 'times'; }
 function chimeUI() {
   const v = $('[name="chime.sound"]').value, q = $('[name="chime.quiet"]').value;
   $$('.chrow').forEach(r => { const on = r.dataset.chime === v; r.classList.toggle('sel', on); r.setAttribute('aria-checked', on); });
@@ -2385,6 +2579,7 @@ function renderDash(s) {
   chips.push(['', 'volume-2', 'Volume ' + Math.round(s.volume * 100) + '%']);
   if (s.sendspin_playing) chips.push(['acc', 'music', 'Playing']);
   if (s.night_active) chips.push(['', 'moon-star', 'Night mode']);
+  if (s.dnd) chips.push(['', 'moon', 'Do not disturb']);
   put($('#d-chips'), chips.map(([st, ic, txt]) => `<span class="chip st-${st}">${icon(ic)}${esc(txt)}</span>`).join(''));
 
   // services
@@ -2480,6 +2675,13 @@ async function loadStatus() {
     usbRepeat = s.usb_repeat || 'off';
     usbNow();
   }
+  if (typeof s.usb_drive !== 'undefined') usbSetDrive(s.usb_drive);
+  if (typeof s.radio_stick !== 'undefined' && s.radio_stick !== plStick) {
+    plStick = s.radio_stick;
+    loadRadio(); // a stick plugged in or pulled: the FM side shows it at once
+    plRender();
+  }
+  if (s.now_playing) npShow(s.now_playing);
   put($('#f-ver'), null, 'clockd ' + s.version);
   put($('#clock-t'), `<span class="lcd">${seg7(s.local_time.slice(11, 16))}</span>`);
   renderDash(s);
@@ -2527,6 +2729,8 @@ async function loadStatus() {
   setText($('#ambhint'), s.ambient_light !== undefined
     ? `Light sensor: ${s.ambient_light}% (raw ${s.ambient_raw}). Display now at ${s.display_brightness}/16.` : 'Light sensor unavailable.');
   $('#nightnow').checked = s.night_active;
+  $('#dndnow').checked = !!s.dnd;
+  setText($('#dndhint'), s.dnd && s.dnd_by_hand ? 'On by hand, until the schedule next starts or ends' : s.dnd ? 'On by the schedule' : 'Overrides the schedule until it next starts or ends');
   lastStatus = s; nightTimeline(); applyMoon();
   setupRow(s.setup);
   setText($('#sunhint'), s.sunset ? `Next sunset ${s.sunset}, next sunrise ${s.sunrise}. Negative minutes = before.` : 'No sun data from Home Assistant yet; the fixed times below are used.');
@@ -2537,13 +2741,14 @@ async function loadStatus() {
   setText($('#mutehint'), s.mic_muted_switch ? 'The hardware mute switch is on; it overrides this.' : 'Applies immediately. The hardware mute switch always overrides this.');
   if (!dragging) {
     $('#vol').value = Math.round(s.volume * 100); setText($('#volv'), Math.round(s.volume * 100) + '%');
+    $('#pl-vol').value = Math.round(s.volume * 100); setText($('#pl-volv'), Math.round(s.volume * 100) + '%'); fillRange($('#pl-vol'));
     $('#night').value = s.night_light; setText($('#nlv'), s.night_light); nightGlow();
     fillRange($('#vol')); fillRange($('#night'));
   }
 }
 
 // ---- immediate controls (not part of Save) ----
-for (const [id, act, scale, out, unit] of [['#vol', 'volume', 0.01, '#volv', '%'], ['#night', 'night_light', 1, '#nlv', '']]) {
+for (const [id, act, scale, out, unit] of [['#vol', 'volume', 0.01, '#volv', '%'], ['#pl-vol', 'volume', 0.01, '#pl-volv', '%'], ['#night', 'night_light', 1, '#nlv', '']]) {
   const el = $(id);
   el.onpointerdown = () => dragging = true;
   el.oninput = () => { $(out).textContent = el.value + unit; if (id === '#night') nightGlow(); };
@@ -2551,6 +2756,7 @@ for (const [id, act, scale, out, unit] of [['#vol', 'volume', 0.01, '#volv', '%'
 }
 $('#softmute').onchange = e => act_('mute', e.target.checked ? 1 : 0);
 $('#nightnow').onchange = e => act_('night_mode', e.target.checked ? 1 : 0);
+$('#dndnow').onchange = e => act_('dnd', e.target.checked ? 1 : 0);
 function setupRow(su) {
   const st = $('#setup-st'), b = $('#setup-btn');
   if (!su || !su.available) { setText(st, 'Not installed on this clock'); setHidden(b, true); return; }
@@ -3106,11 +3312,16 @@ async function loadConfig() {
   $('#ledbv').textContent = cfg.leds.brightness + '%';
   ledUI();
   syncSegs();
-  nightTimeline(); nightGlow(); tunesUI(); chimeUI();
+  nightTimeline(); nightGlow(); tunesUI(); chimeUI(); dndUI();
   { const g = cfg.voice.mic_gain_db || 0; $('#mgval').textContent = (g > 0 ? '+' : '') + g + ' dB'; }
   if (!cfg.voice.stop_cutoff) $('#scut').value = 0.3;
   if (!cfg.voice.wake_sensitivity) $('[name="voice.wake_sensitivity"]').value = 'slight';
   if (!cfg.voice.alarm_sound) $('[name="voice.alarm_sound"]').value = 'gentle';
+  if (!cfg.radio || !cfg.radio.region) $('[name="radio.region"]').value = 'europe'; // configs older than 1.6
+  if (!cfg.dnd || !cfg.dnd.schedule) { // configs from before do not disturb
+    $('[name="dnd.schedule"]').value = 'none'; $('[name="dnd.start"]').value = '22:00'; $('[name="dnd.end"]').value = '07:00';
+  }
+  if (!cfg.radio || !cfg.radio.reception) $('[name="radio.reception"]').value = 'normal';
   if (!cfg.voice.snooze_minutes) $('[name="voice.snooze_minutes"]').value = '10';
   $('#scval').textContent = Number($('#scut').value).toFixed(2);
   fillRanges();
@@ -3153,6 +3364,7 @@ document.addEventListener('input', e => {
   if (t.name === 'night.dark_level') $('#dlv').textContent = t.value;
   if (t.name === 'night.schedule') nightUI();
   if (t.name && t.name.startsWith('chime.')) chimeUI();
+  if (t.name === 'dnd.schedule') dndUI();
   if (t.name === 'night.night_light_level') $('#nllv').textContent = t.value;
   if (t.name === 'display.auto_brightness') autoUI();
   if (t.name === 'leds.brightness') $('#ledbv').textContent = t.value + '%';
@@ -3314,21 +3526,34 @@ async function loadAlarms() {
 function renderAlarms() {
   const d = alData; if (!d) return;
   const pill = $('#al-pill');
-  if (d.ringing) { pill.className = 'pill ok'; pill.textContent = 'Ringing now'; $('#al-sub').textContent = 'The alarm button stops it, any other button snoozes it.'; }
+  if (d.ringing) { pill.className = 'pill ok'; pill.textContent = 'Ringing now'; $('#al-sub').textContent = 'The alarm button stops it, any other button snoozes it; pressing again within 3 s makes the snooze 5 minutes longer (after 20: 5).'; }
   else if (!d.time_known) { pill.className = 'pill bad'; pill.textContent = 'Waiting for the time'; $('#al-sub').textContent = 'The clock doesn\'t know the time yet (after a power cut); alarms ring once it does.'; }
   else if (d.snoozed_until) { pill.className = 'pill ok'; pill.textContent = 'Snoozed'; $('#al-sub').textContent = 'Rings again ' + alWhen(d.snoozed_until); }
   else if (d.next && d.next.at) { pill.className = 'pill ok'; pill.textContent = 'Next alarm'; $('#al-sub').textContent = alWhen(d.next.at) + (d.next.label ? ' · ' + d.next.label : ''); }
   else { pill.className = 'pill'; pill.textContent = d.alarms.length ? 'All alarms off' : 'No alarms'; $('#al-sub').textContent = ''; }
+  setHidden($('#al-unsnooze'), !d.snoozed_until || d.ringing);
   const list = [...d.alarms].sort((a, b) => a.time.localeCompare(b.time));
+  // a repeating alarm can skip its next ring (the clock picks the day)
+  const skipping = a => a.skip && a.skip >= (d.today || '');
+  const skipDay = a => DAYN[new Date(a.skip + 'T12:00').getDay()];
   $('#al-list').innerHTML = list.map(a => '<div class="tunerow' + (alEdit && alEdit.id === a.id ? ' sel' : '') + '" role="listitem" tabindex="0" data-id="' + esc(a.id) + '">' +
-    '<span class="tunename"><b class="al-t">' + esc(alClock(a.time)) + '</b><span>' + esc(alDays(a.days || [])) + (a.label ? ' · ' + esc(a.label) : '') + (a.sunrise ? ' · sunrise' : '') + '</span></span>' +
+    '<span class="tunename"><b class="al-t">' + esc(alClock(a.time)) + '</b><span>' + esc(alDays(a.days || [])) + (a.on && skipping(a) ? ' · skips ' + skipDay(a) : '') + (a.label ? ' · ' + esc(a.label) : '') + (a.sunrise ? ' · sunrise' : '') + ((a.sound || '').startsWith('fm:') ? ' · radio ' + esc(a.sound.slice(3)) : '') + ((a.sound || '').startsWith('usb:') ? ' · ' + esc(alUsbName(a.sound)) : '') + '</span></span>' +
+    ((a.days || []).length && a.on ? '<button class="icon-btn al-skip' + (skipping(a) ? ' on' : '') + '" type="button" data-alskip="' + esc(a.id) + '" aria-pressed="' + !!skipping(a) + '" title="' + (skipping(a) ? 'Ring on ' + skipDay(a) + ' after all' : 'Skip the next one') + '" aria-label="Skip the next ring of ' + esc(a.time) + '"><svg class="ic"><use href="#i-skip-forward"/></svg></button>' : '') +
     '<input type="checkbox" data-alon="' + esc(a.id) + '" aria-label="Alarm ' + esc(a.time) + ' on"' + (a.on ? ' checked' : '') + '></div>').join('');
   $('#al-addrow').hidden = !!alEdit || d.alarms.length >= d.max;
 }
 function alOpen(a) {
   alEdit = a ? structuredClone(a) : {id: '', time: '07:00', days: [], on: true, label: '', sound: ''};
   $('#al-edit-h').textContent = a ? 'Edit alarm' : 'New alarm';
+  alRadioOpts(alEdit.sound); alUsbOpts(alEdit.sound);
+  api('/api/radio').then(st => { // the latest stations (also before the Audio tab was opened)
+    rdLast = st; const v = $('#al-sound').value; alRadioOpts(v); $('#al-sound').value = v;
+  }).catch(() => {});
+  $('#al-usbq').value = '';
+  if (usbDrive && !lib) libFetch();
+  $('#al-fade').value = String(alEdit.fade || 0);
   $('#al-time').value = alEdit.time; $('#al-label').value = alEdit.label || ''; $('#al-sound').value = alEdit.sound || ''; $('#al-sun').checked = !!alEdit.sunrise; syncSegs();
+  alSoundSync();
   alRep(alRepOf(alEdit.days));
   $('#al-del').hidden = !a;
   $('#al-edit').hidden = false; renderAlarms();
@@ -3348,8 +3573,63 @@ async function alSave(list) {
   catch (e) { toast('Not saved: ' + e.message); return false; }
 }
 $('#al-add').onclick = () => alOpen(null);
+$('#al-unsnooze').onclick = async () => { await act_('snooze_cancel'); loadAlarms(); };
 $('#al-cancel').onclick = alClose;
 $('#al-play').onclick = () => act_('sound_' + ($('#al-sound').value || $('[name="voice.alarm_sound"]').value || 'gentle'));
+// FM stations as alarm sounds ("fm:91.2"): the found stations, plus the one
+// the alarm already has; shown once the clock has a radio stick or stations
+function alRadioOpts(cur) {
+  const sel = $('#al-sound');
+  sel.querySelector('optgroup[data-g=fm]')?.remove();
+  const st = rdLast, list = (st && st.stations || []).map(s => ({v: 'fm:' + (s.hz / 1e6).toFixed(1), name: s.name}));
+  if ((cur || '').startsWith('fm:') && !list.some(o => o.v === cur)) list.push({v: cur});
+  if (!list.length && !(st && st.found)) return;
+  const g = document.createElement('optgroup'); g.label = 'FM radio'; g.dataset.g = 'fm';
+  g.innerHTML = list.map(o => `<option value="${esc(o.v)}">${esc(o.v.slice(3))} MHz${o.name ? ' · ' + esc(o.name) : ''}</option>`).join('')
+    || '<option disabled>No stations yet: Find stations on the Audio tab</option>';
+  sel.append(g);
+}
+// a song from the USB drive as the alarm sound ("usb:/Music/song.mp3"):
+// "Music from the USB drive…" opens a song list from the library
+function alUsbName(v) {
+  const p = v.slice(4), t = libTrackOf(p);
+  return t ? [t.t, t.a].filter(Boolean).join(' · ') : p.split('/').pop();
+}
+function alUsbOpts(cur) {
+  const sel = $('#al-sound');
+  sel.querySelector('optgroup[data-g=usb]')?.remove();
+  const g = document.createElement('optgroup'); g.label = 'USB drive'; g.dataset.g = 'usb';
+  g.innerHTML = (cur && cur.startsWith('usb:/') ? `<option value="${esc(cur)}">${esc(alUsbName(cur))}</option>` : '')
+    + '<option value="usb:">Music from the USB drive…</option>';
+  sel.querySelector('optgroup[data-g=fm]') ? sel.insertBefore(g, sel.querySelector('optgroup[data-g=fm]')) : sel.append(g);
+}
+function alUsbList() {
+  const box = $('#al-usblist'), cur = $('#al-sound').value.slice(4);
+  if (!usbDrive) { box.innerHTML = '<p class="hint">No USB drive: plug one in (System › USB set to USB drive).</p>'; return; }
+  if (!lib) { box.innerHTML = '<p class="hint">Reading the drive…</p>'; return; }
+  const words = libLow($('#al-usbq').value).split(/\s+/).filter(Boolean);
+  const hits = lib.tracks.filter(t => words.every(w => t._h.includes(w)))
+    .sort((x, y) => libSortName(x.t) < libSortName(y.t) ? -1 : 1);
+  box.innerHTML = hits.slice(0, 50).map((t, i) => libRow(t, i, [t.a, t.al].filter(Boolean).join(' · ')).replace('class="lib-row"', `class="lib-row${t.p === cur ? ' playing' : ''}" role="option" aria-selected="${t.p === cur}"`)).join('')
+    + (hits.length > 50 ? `<p class="hint">${hits.length - 50} more: type to narrow it down</p>` : '')
+    || '<p class="hint">No songs match</p>';
+}
+$('#al-usbq').addEventListener('input', alUsbList);
+$('#al-usblist').addEventListener('click', e => {
+  const r = e.target.closest('.lib-row'); if (!r) return;
+  const v = 'usb:' + r.dataset.p;
+  alUsbOpts(v); $('#al-sound').value = v; alUsbList();
+});
+$('#al-usblist').addEventListener('keydown', e => { const r = e.target.closest('.lib-row'); if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); r.click(); } });
+// no preview for the radio or a song (they would keep playing); the hints say what happens without them
+function alSoundSync() {
+  const v = $('#al-sound').value, fm = v.startsWith('fm:'), usb = v.startsWith('usb:');
+  $('#al-play').disabled = fm || usb;
+  setHidden($('#al-fmhint'), !fm);
+  setHidden($('#al-usb'), !usb);
+  if (usb) alUsbList();
+}
+$('#al-sound').addEventListener('change', alSoundSync);
 $('#al-rep').onchange = e => alRep(e.target.value);
 $('#al-days').onchange = () => { alEdit.days = $$('#al-days input:checked').map(i => +i.dataset.day); };
 $('#al-save').onclick = async () => {
@@ -3357,7 +3637,8 @@ $('#al-save').onclick = async () => {
   if (!/^\d\d:\d\d$/.test(t)) return toast('Choose a time');
   const rep = $('#al-rep').value;
   if (rep === 'custom' && !alEdit.days.length) return toast('Choose at least one day');
-  const a = {...alEdit, time: t, label: $('#al-label').value.trim(), sound: $('#al-sound').value, sunrise: $('#al-sun').checked, on: true};
+  if ($('#al-sound').value === 'usb:') return toast('Choose a song');
+  const a = {...alEdit, time: t, label: $('#al-label').value.trim(), sound: $('#al-sound').value, sunrise: $('#al-sun').checked, fade: +$('#al-fade').value, on: true, skip: ''};
   const list = alData.alarms.filter(x => x.id !== a.id).concat([a]);
   if (await alSave(list)) { toast('Alarm saved'); alClose(); }
 };
@@ -3365,8 +3646,15 @@ $('#al-del').onclick = async () => {
   if (!alEdit || !confirm('Delete this alarm?')) return;
   if (await alSave(alData.alarms.filter(x => x.id !== alEdit.id))) { toast('Alarm deleted'); alClose(); }
 };
-$('#al-list').onclick = e => {
+$('#al-list').onclick = async e => {
   if (e.target.dataset.alon !== undefined) return;
+  const sk = e.target.closest('[data-alskip]');
+  if (sk) {
+    const on = sk.getAttribute('aria-pressed') !== 'true';
+    try { alData = await post('/api/alarms/skip', {id: sk.dataset.alskip, skip: on}); renderAlarms(); toast(on ? 'Skipping the next one' : 'Rings as usual'); }
+    catch (err) { toast('Not saved: ' + err.message); }
+    return;
+  }
   const r = e.target.closest('.tunerow'); if (r) alOpen(alData.alarms.find(a => a.id === r.dataset.id));
 };
 $('#al-list').onkeydown = e => { const r = e.target.closest('.tunerow'); if (r && e.target === r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); r.click(); } };
@@ -3639,24 +3927,91 @@ const fmtTime = s => {
   const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}` : `${m}:${String(ss).padStart(2, '0')}`;
 };
+// the Player shows the transport; here: the toggles and the playing row
 function usbNow() {
-  const row = $('#usb-nowrow');
-  if (!row) return;
-  setHidden(row, !usbPlaying);
-  if (usbPlaying) {
-    const n = usbName || usbPlaying.split('/').pop();
-    setText($('#usb-now'), (usbPaused ? 'Paused ' : 'Playing ') + n + (usbTotal ? ' · ' + usbTrack + ' of ' + usbTotal : '') + ' on the clock');
-    setText($('#usb-pause'), usbPaused ? 'Resume' : 'Pause');
-    usbTimeBar();
-  }
   usbToggles();
-  setHidden($('#usb-bar'), !usbPlaying || !usbDur);
-  $$('#usb-files .usbrow[data-play]').forEach(r => r.classList.toggle('playing', r.dataset.play === usbPlaying));
+  const mine = uh && uhCur() && uhCur().path;
+  $$('#usb-files .usbrow[data-play]').forEach(r => r.classList.toggle('playing', r.dataset.play === usbPlaying || r.dataset.play === mine));
+  if (typeof libMark === 'function') libMark();
+  if (typeof plRender === 'function') plRender();
 }
-function usbTimeBar() {
-  if (!usbPlaying) return;
-  setText($('#usb-time'), fmtTime(usbElapsed) + (usbDur ? ' / ' + fmtTime(usbDur) : ''));
-  setProp($('#usb-barfill'), 'width', usbDur ? Math.min(100, usbElapsed / usbDur * 100).toFixed(1) + '%' : '0');
+async function usbPlayClock(path, queue) {
+  try { await post('/api/usb/play', queue ? {path, queue} : {path}); usbPlaying = path; usbTrack = usbTotal = 0; usbElapsed = usbDur = 0; usbPaused = false; usbActAt = Date.now(); usbNow(); }
+  catch (e) { toast('Error: ' + e.message); }
+}
+
+// ---- USB drive on This device: the browser plays the drive's files itself
+// (GET /api/usb/file: seekable, nothing decoded on the clock) with its own
+// queue, the folder of the file picked; shuffle and repeat as set for the clock ----
+var uh = null; // {list: [{path, name}], order: [list index], oi}
+const uhDirOf = p => p.slice(0, p.lastIndexOf('/')) || '/';
+const uhCur = () => uh && uh.list[uh.order[uh.oi]];
+// a track's title: from its tags (fetched when it starts), else the file name
+const uhName = t => t ? (t.meta && t.meta.title) || t.name.replace(/\.(flac|mp3|wav)$/i, '') : '';
+// path with its folder after it (entries: the folder's listing, if at hand);
+// a file the library knows plays with its album instead
+async function uhPlay(path, at, entries) {
+  const lt = !entries && libTrackOf(path), al = lt && libAlbumOf(path);
+  if (al) return uhStart(al.tracks.map(libItem), al.tracks.indexOf(lt), at);
+  const dir = uhDirOf(path);
+  if (!entries) { const r = await api('/api/usb/files?path=' + encodeURIComponent(dir)).catch(() => null); entries = r && r.entries || []; }
+  const list = entries.filter(e => !e.dir && !e.link && USB_AUDIO_RE.test(e.name)).map(e => ({path: e.path, name: e.name}));
+  let i = list.findIndex(t => t.path === path);
+  if (i < 0) { list.unshift({path, name: path.split('/').pop()}); i = 0; }
+  uhStart(list, i, at);
+}
+// play list ([{path, name, meta}]) from i in this browser (shuffle as set)
+function uhStart(list, i, at) {
+  let order = list.map((_, k) => k);
+  if (usbShuffle) { order = order.filter(k => k !== i); for (let k = order.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [order[k], order[j]] = [order[j], order[k]]; } order.unshift(i); }
+  if (plHere) plListen(false);
+  uh = {list, order, oi: usbShuffle ? 0 : i};
+  uhLoad(at || 0);
+}
+function uhLoad(at) {
+  const a = $('#pl-uaudio'), t = uhCur();
+  if (!t.meta) api('/api/usb/meta?path=' + encodeURIComponent(t.path)).then(m => { t.meta = m; npSessKey = null; usbNow(); npSession(); }).catch(() => { t.meta = {}; });
+  a.src = '/api/usb/file?path=' + encodeURIComponent(t.path);
+  if (at) a.addEventListener('loadedmetadata', () => { a.currentTime = at; }, {once: true});
+  a.play().catch(err => { toast(err.message); uhStop(); });
+  usbNow();
+}
+function uhStop() {
+  const a = $('#pl-uaudio');
+  uh = null; a.pause(); a.removeAttribute('src'); a.load();
+  usbNow();
+}
+function uhSkip(dir) {
+  const a = $('#pl-uaudio');
+  if (dir < 0 && a.currentTime > 5) { a.currentTime = 0; return; } // as on the clock: back restarts first
+  let oi = uh.oi + dir;
+  if (oi < 0 || oi >= uh.order.length) { if (usbRepeat !== 'all') { if (dir > 0) uhStop(); else a.currentTime = 0; return; } oi = (oi + uh.order.length) % uh.order.length; }
+  uh.oi = oi; uhLoad(0);
+}
+(() => {
+  const a = $('#pl-uaudio');
+  a.addEventListener('ended', () => { if (!uh) return; if (usbRepeat === 'one') { a.currentTime = 0; a.play().catch(() => {}); } else uhSkip(1); });
+  a.addEventListener('error', () => { if (uh && a.getAttribute('src')) { toast('Could not play ' + uhName(uhCur())); uhStop(); } });
+  let last = 0;
+  ['timeupdate', 'play', 'pause', 'loadedmetadata'].forEach(ev => a.addEventListener(ev, () => {
+    if (!uh) return;
+    const now = Date.now();
+    if (ev === 'timeupdate' && now - last < 500) return;
+    last = now;
+    if (plSrc === 'usb') plRenderUSB();
+    npSession();
+    if (ev !== 'timeupdate' && npLast) npShow(npLast);
+  }));
+})();
+// the mounted drive ("sda1#3", new with every mount; "" = none), from the
+// status poll or the USB card: a new drive lists its top folder
+function usbSetDrive(drive) {
+  if (drive === usbDrive) return;
+  usbDrive = drive;
+  if (typeof plArts !== 'undefined') plArts.clear();
+  if (typeof libReset === 'function') libReset(drive);
+  if (drive) usbFiles('/'); else { usbSeq++; usbPlaying = ''; usbNow(); $('#usb-files').innerHTML = ''; $('#usb-crumbs').innerHTML = ''; }
+  plRender();
 }
 // the shuffle/repeat buttons reflect their state (dim = off, accent = on;
 // repeat-one swaps the icon)
@@ -3715,6 +4070,436 @@ $('#sl-timers').addEventListener('click', async e => {
 loadSleep();
 setInterval(() => { if (tab !== 'audio' || document.hidden) return; if (Date.now() - slAt > 5000) loadSleep(); else slRender(); }, 1000);
 
+// ---- FM radio (an RTL-SDR stick on the USB socket) ----
+let rdLast = null, rdShowWeak = false;
+async function loadRadio() { const st = await api('/api/radio').catch(() => null); if (st) renderRadio(st); }
+function renderRadio(st) {
+  const mhz = hz => (hz / 1e6).toFixed(1);
+  const p = $('#rd-pill');
+  const cls = 'pill' + (st.error && !st.playing ? ' bad' : st.playing ? ' ok' : '');
+  if (p.className !== cls) p.className = cls;
+  setText(p, st.searching ? 'searching… ' + Math.round(st.progress * 100) + ' %'
+    : st.playing ? (st.speaker ? 'playing ' : 'streaming ') + (st.name || mhz(st.playing) + ' MHz') : st.found ? 'stick found' : 'no radio stick');
+  setText($('#rd-sub'), st.error && !st.playing ? st.error
+    : st.playing ? mhz(st.playing) + ' MHz · ' + (st.stereo ? 'stereo' : 'mono') + (st.listeners ? ' · ' + st.listeners + ' listening' : '')
+    : st.found ? st.stick : 'Plug an RTL-SDR stick in and switch System › USB to USB drive (a restart switches it back to adb)');
+  rdLast = st;
+  if (typeof plTakeFavs === 'function') plTakeFavs(st);
+  const link = location.origin + st.stream;
+  if ($('#rd-link').value !== link) $('#rd-link').value = link;
+  plRender();
+}
+async function rdDo(path, body) {
+  try { renderRadio(await post('/api/radio/' + path, body || {})); } catch (err) { toast(err.message); }
+}
+$('#rd-copy').addEventListener('click', () => {
+  const k = $('#rd-link');
+  // navigator.clipboard needs https; select + execCommand works on plain http
+  k.select(); k.setSelectionRange(0, k.value.length);
+  toast(document.execCommand('copy') ? 'Link copied' : 'Select the link and copy it by hand');
+});
+$('#rd-newlink').addEventListener('click', () => rdDo('newlink'));
+setInterval(() => { if (tab === 'audio' && !document.hidden && ($('#rd-pill').offsetParent || $('#pl-name').offsetParent)) loadRadio(); }, 2000);
+
+// ---- Player (preview): FM radio and the USB drive in one card; where it
+// plays is a set of chips (clock speaker, this device), any mix, Stop ends all ----
+// var, not let: usbNow and renderRadio may call plRender before this line runs
+var plSrc = localStorage.getItem('pl-src') || 'usb', plStick = null, // null: not known yet
+ plSel = 0, plHere = false, plDrag = 0;
+// where the radio plays (per browser): set first, then Play or a station
+// starts it there; changing it while playing moves the sound at once
+var plOut = (() => { try { return JSON.parse(localStorage.getItem('pl-out')) || {spk: true, here: false}; } catch (e) { return {spk: true, here: false}; } })();
+// favourites live on the clock (radio_favs; HA's dropdown lists them); the
+// ones a browser kept before v1.6.17 move there once
+var plFavs = [], plFavsAt = 0;
+const plMHz = hz => (hz / 1e6).toFixed(1);
+const plBand = () => rdLast && rdLast.band || [87500000, 108000000];
+const plStations = () => rdLast && rdLast.stations || [];
+const plKeep = s => s.pilot_db >= 35 || s.name;
+const plName = hz => { const s = plStations().find(x => x.hz === hz); return s && s.name || ''; };
+function plCur() { return plDrag || (rdLast && rdLast.playing) || plSel || (rdLast && rdLast.last) || plBand()[0]; }
+function plDisp(text, unit) {
+  return (luna() ? `<span class="lcd">${seg7(text)}</span>` : `<span class="pl-big">${esc(text)}</span>`) + (unit ? `<small class="unit">${unit}</small>` : '');
+}
+function plRender() {
+  if (!$('#pl-name') || plSrc === undefined) return;
+  // FM without a stick (and nothing playing): what is needed, instead of an empty dial
+  const noStick = plSrc === 'fm' && plStick === false && !(rdLast && rdLast.playing);
+  setHidden($('#pl-nofm'), !noStick);
+  setHidden($('#pl-now'), noStick); setHidden($('#pl-out'), noStick);
+  if (typeof npSession === 'function') { npSession(); if (npLast) npShow(npLast); }
+  $$('#pl-src button').forEach(b => { const on = b.dataset.v === plSrc; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+  setHidden($('#pl-fm'), plSrc !== 'fm' || noStick); setHidden($('#pl-usb'), plSrc !== 'usb');
+  if (plSrc === 'usb') return plRenderUSB();
+  const st = rdLast || {}, cur = plCur(), off = !st.found || st.searching;
+  put($('#pl-disp'), plDisp(plMHz(cur), 'MHz'));
+  setText($('#pl-name'), st.playing ? (st.name || 'FM ' + plMHz(st.playing)) : plName(cur) || (plDrag ? '' : 'Not playing'));
+  setText($('#pl-sub'), st.searching ? 'searching… ' + Math.round(st.progress * 100) + ' %'
+    : !st.found ? 'No radio stick: plug one in, System › USB: USB drive'
+    : st.playing ? (st.stereo ? 'stereo' : 'mono') + (st.name ? ' · RDS' : '') + ' · on ' + ([st.speaker && 'the clock', plHere && 'this device'].filter(Boolean).join(' and ') || 'the stream link')
+    : plDrag ? 'release to tune' : 'pick a station or tap the band');
+  setHidden($('#pl-pause'), true);
+  setHidden($('#pl-play'), !!st.playing || plHere || off);
+  setHidden($('#pl-stop'), !st.playing && !plHere);
+  setHidden($('#pl-bar'), true);
+  setHidden($('#pl-prev'), false); setHidden($('#pl-next'), false);
+  setHidden($('#pl-art'), true);
+  const spk = $('#pl-spk'), here = $('#pl-here');
+  spk.checked = plOut.spk; here.checked = plOut.here;
+  spk.disabled = here.disabled = false;
+  setHidden($('#pl-volrow'), !plOut.spk); // this device: its own volume buttons
+  here.closest('label').title = '';
+  const others = (st.listeners || 0) - (plHere ? 1 : 0);
+  setText($('#pl-outhint'), !plOut.spk && !plOut.here ? 'Choose where to play first'
+    : others > 0 ? others + ' other listener' + (others > 1 ? 's' : '') + ' through the stream link'
+    : st.playing || plHere ? '' : 'Choose where it plays, then Play or a station');
+  plDial(cur, off);
+  plFavRender(cur, off);
+  plList(cur, off);
+  $('#pl-search').disabled = off;
+}
+function plRenderUSB() {
+  // the clock's queue when it plays, else this browser's (both: the clock's)
+  const ua = $('#pl-uaudio'), local = !!uh && !usbPlaying, on = !!usbPlaying || !!uh;
+  const el = local ? ua.currentTime || 0 : usbElapsed, dur = local ? (isFinite(ua.duration) ? ua.duration : 0) : usbDur;
+  const paused = local ? ua.paused : usbPaused;
+  const lt = !local && libTrackOf(usbPlaying);
+  const name = local ? uhName(uhCur()) : lt ? lt.t : usbName || (usbPlaying || '').split('/').pop();
+  const m = local ? uhCur().meta || {} : lt ? {artist: lt.a, album: lt.al} : {}, by = [m.artist, m.album].filter(Boolean).join(' · ');
+  const pos = local ? (uh.order.length > 1 ? (uh.oi + 1) + ' of ' + uh.order.length : '') : (usbTotal ? usbTrack + ' of ' + usbTotal : '');
+  const where = [usbPlaying && 'the clock', uh && 'this device'].filter(Boolean).join(' and ');
+  put($('#pl-disp'), plDisp(on ? fmtTime(el) : '--:--', on && dur ? '/ ' + fmtTime(dur) : ''));
+  setText($('#pl-name'), on ? name : 'Not playing');
+  setText($('#pl-sub'), on ? [by, paused ? 'paused' : 'playing', pos, 'on ' + where].filter(Boolean).join(' · ')
+    : usbDrive ? 'pick something from the library below' : 'No USB drive: plug one in, System › USB: USB drive');
+  setHidden($('#pl-pause'), !on); setText($('#pl-pause'), paused ? 'Resume' : 'Pause');
+  setHidden($('#pl-play'), true);
+  setHidden($('#pl-stop'), !on);
+  setHidden($('#pl-prev'), !on); setHidden($('#pl-next'), !on);
+  setHidden($('#pl-bar'), !on || !dur);
+  setProp($('#pl-barfill'), 'width', dur ? Math.min(100, el / dur * 100).toFixed(1) + '%' : '0');
+  $('#pl-bar').classList.toggle('seek', local && !!dur);
+  $('#pl-bar').title = local && dur ? 'Seek' : '';
+  const spk = $('#pl-spk'), here = $('#pl-here');
+  spk.checked = plOut.spk; here.checked = plOut.here; spk.disabled = here.disabled = false;
+  setHidden($('#pl-volrow'), !plOut.spk);
+  here.closest('label').title = '';
+  setText($('#pl-outhint'), !plOut.spk && !plOut.here ? 'Choose where it plays, then a file'
+    : plOut.spk && plOut.here ? 'The clock and this device each play on their own (not in sync)' : '');
+  setHidden($('#pl-usb'), !usbDrive);
+  const art = on ? plArt(local ? uhCur().path : usbPlaying) : null, img = $('#pl-art');
+  setHidden(img, !art);
+  if (art && img.getAttribute('src') !== art) img.src = art;
+}
+// covers by drive path, as data: URLs (one form for <img> and Media Session);
+// null = the file has none, 'wait' = being fetched
+const plArts = new Map();
+function plArt(path) {
+  if (!path) return null;
+  const v = plArts.get(path);
+  if (v !== undefined) return v === 'wait' ? null : v;
+  if (plArts.size > 60) plArts.clear();
+  plArts.set(path, 'wait');
+  fetch('/api/usb/art?path=' + encodeURIComponent(path)).then(r => r.ok ? r.blob() : null).then(b => {
+    if (!b) { plArts.set(path, null); return; }
+    const fr = new FileReader();
+    fr.onload = () => { plArts.set(path, fr.result); npSessKey = null; usbNow(); npSession(); };
+    fr.readAsDataURL(b);
+  }).catch(() => plArts.set(path, null));
+  return null;
+}
+function plDial(cur, off) {
+  const [lo, hi] = plBand(), n = Math.round((hi - lo) / 1e5) + 1, d = $('#pl-dial');
+  const key = JSON.stringify([lo, hi, plStations()]);
+  if (d.dataset.key !== key) {
+    d.dataset.key = key;
+    d.innerHTML = plStations().map(s => {
+      const k = Math.round((s.hz - lo) / 1e5), h = Math.max(14, Math.min(60, (s.pilot_db - 18) * 1.5));
+      return `<u class="${plKeep(s) ? '' : 'weak'}" style="left:calc(10px + (100% - 20px) * ${(k + .5) / n});height:${Math.round(h)}px"></u>`;
+    }).join('') + '<b class="pl-needle"></b>';
+    let sc = '';
+    for (let m = Math.ceil(lo / 4e6) * 4; m * 1e6 <= hi; m += 4) sc += `<span style="left:${((m * 1e6 - lo) / 1e5 + .5) / n * 100}%">${m}</span>`;
+    $('#pl-scale').innerHTML = sc;
+  }
+  const i = Math.round((cur - lo) / 1e5);
+  setProp(d.querySelector('.pl-needle'), 'left', `calc(10px + (100% - 20px) * ${(i + .5) / n})`);
+  d.setAttribute('aria-valuetext', plMHz(cur) + ' MHz');
+  d.style.opacity = off ? .5 : '';
+}
+function plFavRender(cur, off) {
+  let h = '';
+  for (let i = 0; i < 6; i++) {
+    const hz = plFavs[i];
+    h += hz ? `<button type="button" class="pl-fav${hz === cur ? ' sel' : ''}" data-hz="${hz}"${off ? ' disabled' : ''}>${plMHz(hz)}<small>${esc(plName(hz)) || '&nbsp;'}</small></button>`
+      : `<button type="button" class="pl-fav empty" data-pin="1" title="Pin the station shown above"${off ? ' disabled' : ''}>+<small>&nbsp;</small></button>`;
+  }
+  const f = $('#pl-favs'); if (f.dataset.h !== h) { f.dataset.h = h; f.innerHTML = h; }
+}
+function plList(cur, off) {
+  // weak stations without a name wait behind a row of their own (a name
+  // means RDS came through: listenable)
+  const st = rdLast || {}, keep = s => plKeep(s) || s.hz === st.playing;
+  const weak = plStations().filter(s => !keep(s)).length, shown = plStations().filter(s => rdShowWeak || keep(s));
+  const key = JSON.stringify([shown, st.playing, cur, plFavs, off, weak]), l = $('#pl-list');
+  if (l.dataset.key === key) return;
+  l.dataset.key = key;
+  l.innerHTML = shown.length ? shown.map(s => {
+    const fav = plFavs.includes(s.hz);
+    return `<div class="tunerow${s.hz === (st.playing || cur) ? ' sel' : ''}" role="listitem" data-hz="${s.hz}">` +
+      `<span class="tunename"><b>${s.name ? esc(s.name) : plMHz(s.hz) + ' MHz'}</b><span>${s.name ? plMHz(s.hz) + ' MHz · ' : ''}${s.pilot_db >= 45 ? 'strong' : s.pilot_db >= 35 ? 'good' : 'weak'} signal${s.hz === st.playing ? ' · playing' : ''}</span></span>` +
+      `<button class="icon-btn pl-star${fav ? ' on' : ''}" type="button" data-star="${s.hz}" aria-pressed="${fav}" title="${fav ? 'Unpin' : 'Pin to favourites'}" aria-label="Favourite ${plMHz(s.hz)} MHz"><svg class="ic"><use href="#i-star"/></svg></button></div>`;
+  }).join('') + (weak ? `<button class="btn quiet" type="button" id="pl-weak">${rdShowWeak ? 'Hide' : 'Show'} ${weak} weak station${weak > 1 ? 's' : ''}</button>` : '')
+    : `<div class="hint">${st.found ? 'No stations yet: Find stations searches the band.' : ''}</div>`;
+}
+async function plSaveFavs() {
+  plFavsAt = Date.now(); plRender();
+  try { renderRadio(await post('/api/radio/favs', {favs: plFavs})); } catch (e) { toast('Favourites: ' + e.message); loadRadio(); }
+}
+// called by renderRadio with each status: the clock's list, unless a change
+// from this page is on its way
+function plTakeFavs(st) {
+  if (!Array.isArray(st.favs) || Date.now() - plFavsAt < 3000) return;
+  const old = (() => { try { return JSON.parse(localStorage.getItem('pl-favs')) || []; } catch (e) { return []; } })();
+  if (old.length && !st.favs.length) { localStorage.removeItem('pl-favs'); plFavs = old.slice(0, 6); plSaveFavs(); return; }
+  if (old.length) localStorage.removeItem('pl-favs');
+  plFavs = st.favs;
+}
+// this device: the stream in this browser (what the clock plays, or a station
+// of its own for listeners only)
+function plListen(on, hz) {
+  const a = $('#pl-audio');
+  if (on && uh) uhStop();
+  plHere = on;
+  if (!on) { a.pause(); a.removeAttribute('src'); a.load(); setTimeout(loadRadio, 400); plRender(); return; }
+  a.src = rdLast.stream + (hz ? '?mhz=' + plMHz(hz) : '');
+  a.play().catch(err => { toast(err.message); plListen(false); });
+  setTimeout(loadRadio, 1200); plRender();
+}
+// play hz on the chosen outputs; never on the clock unless Clock speaker is on
+async function plTune(hz) {
+  plSel = hz; const st = rdLast || {};
+  if (!plOut.spk && !plOut.here) { toast('Choose where to play: Clock speaker or This device'); plRender(); return; }
+  if (plOut.spk) {
+    await rdDo('play', {hz}); // listeners stay on through a station change
+    if (plOut.here && !plHere) plListen(true);
+    else if (!plOut.here && plHere) plListen(false);
+  } else if (st.playing && st.speaker) {
+    // the clock plays (started elsewhere) but this browser only wants it here:
+    // stop the clock, then a listeners-only station
+    await rdDo('stop');
+    if (plHere) $('#pl-audio').pause();
+    setTimeout(() => plListen(true, hz), 300);
+  } else if (plHere && st.playing) await rdDo('play', {hz, speaker: false});
+  else plListen(true, hz);
+  plRender();
+}
+function plSaveOut() { localStorage.setItem('pl-out', JSON.stringify(plOut)); plRender(); }
+$('#pl-src').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  plSrc = b.dataset.v; localStorage.setItem('pl-src', plSrc); plRender();
+});
+// the output chips only set where it plays; while something plays, the sound
+// moves with them (nothing starts from a stopped radio)
+$('#pl-spk').addEventListener('change', async e => {
+  const on = e.target.checked;
+  if (plSrc === 'usb') {
+    plOut.spk = on; plSaveOut();
+    if (!on && usbPlaying) usbStop();
+    else if (on && uh && !usbPlaying) usbPlayClock(uhCur().path); // from the start: the clock can't seek
+    return;
+  }
+  plOut.spk = on; plSaveOut();
+  const st = rdLast || {};
+  if (!st.playing) return;
+  if (on && !st.speaker) { await rdDo('play', {hz: st.playing}); return; }
+  if (!on && st.speaker) {
+    // the clock off, this device on: stop, then a listeners-only station (a
+    // short gap; the real version needs a "speaker off" call on the clock)
+    const cur = st.playing;
+    await rdDo('stop');
+    if (plHere) { $('#pl-audio').pause(); setTimeout(() => plListen(true, cur), 300); }
+  }
+});
+$('#pl-here').addEventListener('change', e => {
+  plOut.here = e.target.checked; plSaveOut();
+  if (plSrc === 'usb') {
+    if (plOut.here && usbPlaying && !uh) uhPlay(usbPlaying, usbElapsed); // pick up where the clock is
+    else if (!plOut.here && uh) uhStop();
+    return;
+  }
+  if (!rdLast) return;
+  if (plOut.here && rdLast.playing && !plHere) plListen(true);
+  else if (!plOut.here && plHere) plListen(false);
+});
+$('#pl-play').addEventListener('click', () => plTune(plCur()));
+['ended', 'error'].forEach(ev => $('#pl-audio').addEventListener(ev, () => {
+  if (plHere && $('#pl-audio').getAttribute('src')) { plHere = false; toast('The radio stream ended'); loadRadio(); }
+}));
+$('#pl-stop').addEventListener('click', async () => {
+  if (plSrc === 'usb') { if (uh) uhStop(); if (usbPlaying) usbStop(); return; }
+  if (plHere) plListen(false);
+  await rdDo('stop');
+});
+$('#pl-pause').addEventListener('click', () => {
+  // both playing: they pause and resume together
+  const ua = $('#pl-uaudio'), pause = usbPlaying ? !usbPaused : !ua.paused;
+  if (usbPlaying) usbPause();
+  if (uh) { if (pause) ua.pause(); else ua.play().catch(() => {}); }
+});
+$('#pl-bar').addEventListener('click', e => {
+  const ua = $('#pl-uaudio');
+  if (!uh || usbPlaying || !isFinite(ua.duration)) return;
+  const r = $('#pl-bar').getBoundingClientRect();
+  ua.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * ua.duration;
+});
+function plStep(dir) {
+  if (plSrc === 'usb') { if (usbPlaying) usbSkip(dir)(); if (uh) uhSkip(dir); return; }
+  plStepFM(dir);
+}
+function plStepFM(dir) {
+  // every listed station in band order (the favourites have their own buttons)
+  const ring = plStations().filter(s => plKeep(s) || s.hz === (rdLast && rdLast.playing)).map(s => s.hz).sort((a, b) => a - b);
+  if (!ring.length) return;
+  const cur = plCur(); let i = ring.indexOf(cur);
+  if (i < 0) { i = dir > 0 ? ring.findIndex(h => h > cur) : ring.length - 1 - [...ring].reverse().findIndex(h => h < cur); if (i < 0 || i >= ring.length) i = dir > 0 ? 0 : ring.length - 1; }
+  else i = (i + dir + ring.length) % ring.length;
+  plTune(ring[i]);
+}
+$('#pl-prev').addEventListener('click', () => plStep(-1));
+
+// ---- now playing: what the clock plays, whatever started it (status
+// now_playing): the Player's strip for a source it isn't showing, the Audio
+// tab's dot, and Media Session for the radio heard in this browser (lock
+// screen and media keys; browsers only offer it while the page plays) ----
+var npLast = null, npFirst = true;
+const NP_SRC = {fm: 'FM radio', usb: 'USB drive', dlna: 'DLNA', url: 'Home Assistant', sleep: 'Sleep sound', music_assistant: 'Music Assistant'};
+function npShow(np) {
+  npLast = np;
+  // a page opened while the radio or a drive plays shows that in the Player
+  if (npFirst) {
+    npFirst = false;
+    if ((np.source === 'fm' || np.source === 'usb') && plSrc !== np.source) { plSrc = np.source; localStorage.setItem('pl-src', plSrc); plRender(); }
+  }
+  const src = np.source || '', other = src && src !== plSrc;
+  setHidden($('#pl-other'), !other);
+  if (other) {
+    setText($('#pl-other-t'), np.title || NP_SRC[src] || src);
+    setText($('#pl-other-s'), [NP_SRC[src] || src, np.title && np.detail, np.paused && 'paused', np.on_clock ? 'on the clock' : 'stream only'].filter(Boolean).join(' · '));
+    $('#pl-other').style.cursor = src === 'fm' || src === 'usb' ? 'pointer' : '';
+    $('#pl-other').title = src === 'fm' || src === 'usb' ? 'Show it in the Player' : '';
+  }
+  const ua = $('#pl-uaudio'), mine = !!uh && !ua.paused;
+  const nb = $('nav button[data-tab=audio]'), on = !!src && np.on_clock || plHere || mine;
+  nb.classList.toggle('np', on);
+  nb.title = on ? 'Playing: ' + (src && np.on_clock ? np.title || NP_SRC[src] : mine ? uhName(uhCur()) : 'FM radio here') : '';
+}
+$('#pl-other').addEventListener('click', e => {
+  const src = npLast && npLast.source;
+  if (e.target.closest('#pl-other-stop') || !(src === 'fm' || src === 'usb')) return;
+  plSrc = src; localStorage.setItem('pl-src', plSrc); plRender(); npShow(npLast);
+});
+$('#pl-other-stop').addEventListener('click', async () => {
+  if (plHere) plListen(false);
+  try { await post('/api/action/stop_playing', {}); } catch (e) { toast('Error: ' + e.message); }
+  setTimeout(loadStatus, 300); setTimeout(loadRadio, 600);
+});
+let npSessKey = null, npSessHeld = 0;
+function npSession() {
+  if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+  const ms = navigator.mediaSession, st = rdLast || {}, hz = st.playing || npSessHeld;
+  if (uh) {
+    const a = $('#pl-uaudio'), t = uhCur(), art = plArt(t.path), k = 'usb|' + t.path + '|' + !!art;
+    if (k !== npSessKey) {
+      npSessKey = k;
+      const m = t.meta || {};
+      ms.metadata = new MediaMetadata({title: uhName(t), artist: m.artist || uhDirOf(t.path).split('/').pop() || 'USB drive', album: m.album || $('#h-name').textContent,
+        artwork: art ? [{src: art, sizes: '600x600'}] : [{src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml'}]});
+    }
+    ms.playbackState = a.paused ? 'paused' : 'playing';
+    if (isFinite(a.duration) && a.duration > 0 && ms.setPositionState) {
+      try { ms.setPositionState({duration: a.duration, position: Math.min(a.currentTime, a.duration), playbackRate: a.playbackRate || 1}); } catch (e) { /* out of range */ }
+    }
+    return;
+  }
+  const key = plHere ? 'on|' + hz + '|' + (st.name || '') : npSessHeld ? 'held|' + npSessHeld : '';
+  if (key === npSessKey) return;
+  npSessKey = key;
+  if (!key) { ms.metadata = null; ms.playbackState = 'none'; return; }
+  const name = hz === st.playing && st.name || plName(hz);
+  ms.metadata = new MediaMetadata({title: name || 'FM ' + plMHz(hz) + ' MHz', artist: name ? 'FM ' + plMHz(hz) + ' MHz' : 'FM radio',
+    album: $('#h-name').textContent, artwork: [{src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml'}]});
+  ms.playbackState = plHere ? 'playing' : 'paused';
+}
+if ('mediaSession' in navigator) {
+  const act = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch (e) { /* not offered here */ } };
+  // live radio: pause ends the stream (the clock stops running for nobody);
+  // play picks the same station up again
+  // a drive file playing here: the audio element itself
+  const ua = $('#pl-uaudio');
+  act('pause', () => { if (uh) { ua.pause(); return; } if (plHere) { npSessHeld = (rdLast && rdLast.playing) || plCur(); plListen(false); } });
+  act('play', () => { if (uh) { ua.play().catch(() => {}); return; } if (!plHere && npSessHeld) { const hz = npSessHeld; npSessHeld = 0; plListen(true, hz); } });
+  act('stop', () => { npSessHeld = 0; if (uh) uhStop(); if (plHere) plListen(false); npSession(); });
+  act('previoustrack', () => { if (uh) uhSkip(-1); else if (plHere) plStepFM(-1); });
+  act('nexttrack', () => { if (uh) uhSkip(1); else if (plHere) plStepFM(1); });
+  act('seekto', d => { if (uh && isFinite(ua.duration)) ua.currentTime = d.seekTime; });
+}
+$('#pl-next').addEventListener('click', () => plStep(1));
+$('#pl-favs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.pin) { const c = plCur(); if (!plFavs.includes(c)) { plFavs.push(c); plSaveFavs(); } return; }
+  plTune(+b.dataset.hz);
+});
+$('#pl-list').addEventListener('click', e => {
+  if (e.target.closest('#pl-weak')) { rdShowWeak = !rdShowWeak; plRender(); return; }
+  const s = e.target.closest('[data-star]');
+  if (s) { const hz = +s.dataset.star; plFavs = plFavs.includes(hz) ? plFavs.filter(x => x !== hz) : plFavs.length < 6 ? [...plFavs, hz] : (toast('Six favourites at most: unpin one first'), plFavs); plSaveFavs(); return; }
+  const r = e.target.closest('.tunerow'); if (r && !(rdLast && (!rdLast.found || rdLast.searching))) plTune(+r.dataset.hz);
+});
+$('#pl-search').addEventListener('click', () => rdDo('search'));
+// the band: drag shows the frequency, letting go tunes it
+function plAt(x) {
+  const d = $('#pl-dial').getBoundingClientRect(), [lo, hi] = plBand(), n = Math.round((hi - lo) / 1e5) + 1;
+  const i = Math.max(0, Math.min(n - 1, Math.floor((x - d.left - 10) / (d.width - 20) * n)));
+  return lo + i * 1e5;
+}
+// a tap lands on the nearest station within 0.3 MHz (fingers are wide)
+function plSnap(hz) {
+  let best = hz, dist = 300001;
+  plStations().forEach(s => { const dd = Math.abs(s.hz - hz); if (dd < dist) { dist = dd; best = s.hz; } });
+  return best;
+}
+// Mouse: press and drag, tunes on release. Touch: vertical moves scroll the
+// page (touch-action pan-y; the browser cancels the pointer), a sideways drag
+// past 10 px tunes like the mouse, a still tap tunes the nearest station; a
+// tap that only stops a scrolling page does nothing.
+let plPress = null, plScrollAt = 0;
+addEventListener('scroll', () => { plScrollAt = Date.now(); }, {passive: true});
+const plDialOK = () => rdLast && rdLast.found && !rdLast.searching;
+$('#pl-dial').addEventListener('pointerdown', e => {
+  if (!plDialOK()) return;
+  if (e.pointerType === 'mouse') { e.currentTarget.setPointerCapture(e.pointerId); plDrag = plAt(e.clientX); plRender(); return; }
+  plPress = Date.now() - plScrollAt < 400 ? null : {x: e.clientX, y: e.clientY};
+});
+$('#pl-dial').addEventListener('pointermove', e => {
+  if (plPress) {
+    const dx = Math.abs(e.clientX - plPress.x), dy = Math.abs(e.clientY - plPress.y);
+    if (dy > 10 && dy > dx) { plPress = null; return; }
+    if (dx > 10) { plPress = null; e.currentTarget.setPointerCapture(e.pointerId); plDrag = plAt(e.clientX); plRender(); }
+    return;
+  }
+  if (plDrag) { const h = plAt(e.clientX); if (h !== plDrag) { plDrag = h; plRender(); } }
+});
+$('#pl-dial').addEventListener('pointerup', e => {
+  if (plPress) { plPress = null; plTune(plSnap(plAt(e.clientX))); return; }
+  if (!plDrag) return; const hz = plDrag; plDrag = 0; plTune(hz);
+});
+$('#pl-dial').addEventListener('pointercancel', () => { plPress = null; if (plDrag) { plDrag = 0; plRender(); } });
+$('#pl-dial').addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  e.preventDefault(); const [lo, hi] = plBand();
+  plTune(Math.max(lo, Math.min(hi, plCur() + (e.key === 'ArrowLeft' ? -1e5 : 1e5))));
+});
+
 async function loadUSB() {
   if (usbBusy) return;
   const st = await api('/api/usb').catch(() => null); if (!st || usbBusy) return;
@@ -3761,10 +4546,7 @@ function renderUSB(st) {
   $('#usb-drive').hidden = !drive;
   // list only when the drive changed (plugged, swapped, mounted again): a
   // status refresh must not throw the user out of the folder being read
-  if (drive !== usbDrive) {
-    usbDrive = drive;
-    if (drive) usbFiles('/'); else { usbSeq++; usbPlaying = ''; usbNow(); $('#usb-files').innerHTML = ''; $('#usb-crumbs').innerHTML = ''; }
-  }
+  usbSetDrive(drive);
 }
 $$('#usb-mode button').forEach(b => b.onclick = async () => {
   if (usbBusy || b.classList.contains('on')) return;
@@ -3803,7 +4585,7 @@ async function usbFiles(path) {
     const sub = e.link ? 'link' : fmtSize(e.size);
     const audio = !e.link && USB_AUDIO_RE.test(e.name);
     const icon = audio ? 'music' : e.link ? 'link' : 'scroll-text';
-    const play = audio ? `<button type="button" class="ibtn" data-play="${esc(e.path)}" aria-label="Play ${esc(e.name)} on the clock" title="Play on the clock"><svg class="ic"><use href="#i-play"/></svg></button>` : '';
+    const play = audio ? `<button type="button" class="ibtn" data-play="${esc(e.path)}" aria-label="Play ${esc(e.name)}" title="Play (where Plays on says)"><svg class="ic"><use href="#i-play"/></svg></button>` : '';
     return `<div class="sess usbrow${audio && e.path === usbPlaying ? ' playing' : ''}" ${audio ? `data-play="${esc(e.path)}"` : ''}><svg class="ic"><use href="#i-${icon}"/></svg><div>${esc(e.name)}</div><span class="hint" style="flex:0 0 auto">${esc(sub)}</span>${play}</div>`;
   }).join('') || '<div class="hint">empty</div>';
   $$('#usb-files .usbrow[data-p], #usb-crumbs .crumb').forEach(row => {
@@ -3815,17 +4597,216 @@ async function usbFiles(path) {
     b.onclick = async () => {
       b.disabled = true;
       const path = b.closest('.usbrow').dataset.play;
-      try { await post('/api/usb/play', {path}); usbPlaying = path; usbTrack = usbTotal = 0; usbElapsed = usbDur = 0; usbPaused = false; usbActAt = Date.now(); usbNow(); }
-      catch (e) { toast('Error: ' + e.message); }
+      if (!plOut.spk && !plOut.here) toast('Choose where to play: Clock speaker or This device');
+      if (plOut.spk) await usbPlayClock(path);
+      if (plOut.here) await uhPlay(path, 0, r.path === uhDirOf(path) ? r.entries : null);
+      else if (uh) uhStop();
       b.disabled = false;
     };
   });
   usbNow();
 }
-$('#usb-stop').onclick = async () => {
+// ---- the music library (Player › USB drive): the clock indexes the drive's
+// tags (GET /api/usb/library); albums, artists, songs, the filter and the
+// queues are built here, so browsing never waits for the clock ----
+var lib = null, libAlbums = [], libArtists = [], libBy = new Map(), libAlbumBy = new Map();
+var libView = localStorage.getItem('lib-view') || 'albums', libNav = [], libQ = '', libLimit = 0, libPoll = 0, libSongs = [];
+// function declarations (hoisted): the Player renders before this block runs
+var LIB_VIEWS = {albums: 'Albums', artists: 'Artists', songs: 'Songs', folders: 'Folders'};
+function libLow(s) { return (s || '').toLowerCase(); }
+function libSortName(s) { return libLow(s).replace(/^the\s+/, ''); }
+function libTrackOf(p) { return p && libBy.get(p); }
+function libAlbumOf(p) { return p && libAlbumBy.get(p); }
+function libItem(t) { return {path: t.p, name: t.p.split('/').pop(), meta: {title: t.t, artist: t.a, album: t.al}}; }
+function libArt(p, size) { return '/api/usb/art?size=' + size + '&path=' + encodeURIComponent(p); }
+function libDur(s) { return s ? fmtTime(s) : ''; }
+function libDirAlbum(p) {
+  let d = p.slice(0, p.lastIndexOf('/')) || '/';
+  if (/^(cd|disc|disk)[\s_-]*\d{1,2}$/i.test(d.split('/').pop())) d = d.slice(0, d.lastIndexOf('/')) || '/';
+  return d;
+}
+function libReset(drive) {
+  lib = null; libAlbums = []; libArtists = []; libBy = new Map(); libAlbumBy = new Map(); libNav = [];
+  clearTimeout(libPoll);
+  if (drive) libFetch(); else libRender();
+}
+async function libFetch(brief) {
+  clearTimeout(libPoll);
+  const r = await api('/api/usb/library' + (brief ? '?brief=1' : '')).catch(() => null);
+  if (!r || !usbDrive) return;
+  if (brief) {
+    if (!r.scanning && (!lib || r.gen !== lib.gen)) return libFetch();
+    if (lib) { lib.scanning = r.scanning; lib.done = r.done; lib.total = r.total; }
+    libNote();
+  } else {
+    lib = r; libBuild(); libRender(); usbNow();
+    if (alEdit && $('#al-sound').value.startsWith('usb:')) alUsbList();
+  }
+  if (r.scanning) libPoll = setTimeout(() => libFetch(true), 2000);
+}
+function libBuild() {
+  const albums = new Map();
+  libBy = new Map(); libAlbumBy = new Map();
+  for (const t of lib.tracks) {
+    t._h = libLow([t.t, t.a, t.aa, t.al].join(' '));
+    libBy.set(t.p, t);
+    // an album = its title in its folder (disc folders folded in): album
+    // artist tags are often uneven within one album, so they don't split it
+    const key = libLow(t.al) + '|' + libDirAlbum(t.p);
+    let a = albums.get(key);
+    if (!a) albums.set(key, a = {key, title: t.al || 'Unknown album', aas: new Map(), artists: new Set(), year: '', tracks: [], secs: 0});
+    if (t.a) a.artists.add(t.a);
+    if (t.aa) a.aas.set(t.aa, (a.aas.get(t.aa) || 0) + 1);
+    if (!a.year && t.y) a.year = t.y.slice(0, 4);
+    a.tracks.push(t); a.secs += t.s || 0;
+  }
+  libAlbums = [...albums.values()];
+  for (const a of libAlbums) {
+    const aa = [...a.aas].sort((x, y) => y[1] - x[1])[0]; // the most common album artist tag
+    a.artist = aa ? aa[0] : a.artists.size === 1 ? [...a.artists][0] : a.artists.size ? 'Various Artists' : 'Unknown artist';
+    a.tracks.sort((x, y) => (x.d || 1) - (y.d || 1) || (x.n || 999) - (y.n || 999) || (x.p < y.p ? -1 : 1));
+    a.discs = new Set(a.tracks.map(t => t.d || 1)).size;
+    for (const t of a.tracks) libAlbumBy.set(t.p, a);
+  }
+  libAlbums.sort((x, y) => libSortName(x.artist).localeCompare(libSortName(y.artist)) || (x.year || '9999').localeCompare(y.year || '9999') || x.title.localeCompare(y.title));
+  const arts = new Map();
+  for (const a of libAlbums) {
+    let r = arts.get(a.artist);
+    if (!r) arts.set(a.artist, r = {name: a.artist, albums: [], songs: 0});
+    r.albums.push(a); r.songs += a.tracks.length;
+  }
+  libArtists = [...arts.values()];
+}
+function libMatch(t, words) { return words.every(w => t._h.includes(w)); }
+function libNote() {
+  const n = $('#lib-note');
+  if (!usbDrive || libView === 'folders') return setText(n, '');
+  if (!lib) return setText(n, 'Reading the library…');
+  const busy = lib.scanning ? 'Reading the library… ' + lib.done + ' of ' + (lib.total || '?') + ' files' : '';
+  setText(n, busy || (!lib.tracks.length ? 'No music on the drive (FLAC, MP3 and WAV are played).' : ''));
+}
+function libCrumbs() {
+  const c = [`<button type="button" class="crumb" data-nav="0">${esc(LIB_VIEWS[libView])}</button>`];
+  libNav.forEach((n, i) => c.push(`<span class="dim">›</span> <button type="button" class="crumb" data-nav="${i + 1}">${esc(n.artist ? n.artist.name : n.album.title)}</button>`));
+  $('#lib-crumbs').innerHTML = libNav.length || libQ ? c.join(' ') + (libQ ? ` <span class="dim">· filtered</span>` : '') : '';
+}
+function libAlbumCard(a) {
+  return `<button type="button" class="lib-alb" data-alb="${libAlbums.indexOf(a)}"><span class="lib-cov"><svg class="ic"><use href="#i-music"/></svg><img loading="lazy" alt="" src="${libArt(a.tracks[0].p, 200)}"></span>`
+    + `<b>${esc(a.title)}</b><span>${esc(a.artist)}${a.year ? ' · ' + esc(a.year) : ''}</span></button>`;
+}
+function libMoreBtn(shown, total) {
+  return shown < total ? `<div class="lib-more"><button type="button" class="btn quiet" data-more="1">Show more (${total - shown} left)</button></div>` : '';
+}
+function libRow(t, i, sub, num) {
+  return `<div class="lib-row" role="button" tabindex="0" data-i="${i}" data-p="${esc(t.p)}"><span class="lib-n">${num || ''}</span>`
+    + `<span class="lib-tt"><b>${esc(t.t)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</span><span class="lib-d">${libDur(t.s)}</span></div>`;
+}
+function libRender() {
+  if (!$('#lib-body')) return;
+  $$('#lib-view button').forEach(b => { const on = b.dataset.v === libView; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+  const folders = libView === 'folders';
+  setHidden($('#lib-folders'), !folders); setHidden($('#lib-body'), folders); setHidden($('.lib-q'), folders);
+  setHidden($('#lib-crumbs'), folders);
+  libNote();
+  if (folders) return;
+  libCrumbs();
+  const body = $('#lib-body'), words = libLow(libQ).split(/\s+/).filter(Boolean);
+  if (!lib || !lib.tracks.length) { body.innerHTML = ''; return; }
+  const top = libNav[libNav.length - 1];
+  const lim = libLimit || (libView === 'songs' ? 200 : 60);
+  if (top && top.album) {
+    const a = top.album, mins = Math.round(a.secs / 60);
+    let h = `<div class="lib-head"><span class="lib-cov"><svg class="ic"><use href="#i-music"/></svg><img alt="" src="${libArt(a.tracks[0].p, 300)}"></span><div>`
+      + `<div class="lib-h">${esc(a.title)}</div><div class="hint">${[esc(a.artist), a.year, a.tracks.length + (a.tracks.length === 1 ? ' song' : ' songs'), mins ? mins + ' min' : ''].filter(Boolean).join(' · ')}</div>`
+      + `<div class="actions"><button type="button" class="btn" data-albplay="0">Play</button><button type="button" class="btn sec" data-albplay="1">Shuffle</button></div></div></div>`;
+    let disc = 0;
+    a.tracks.forEach((t, i) => {
+      if (a.discs > 1 && (t.d || 1) !== disc) { disc = t.d || 1; h += `<div class="subhead">Disc ${disc}</div>`; }
+      h += libRow(t, i, t.a && t.a !== a.artist ? t.a : '', t.n);
+    });
+    body.innerHTML = h;
+  } else if (top && top.artist) {
+    const list = top.artist.albums.filter(a => !words.length || a.tracks.some(t => libMatch(t, words)));
+    body.innerHTML = `<div class="lib-grid">${list.map(libAlbumCard).join('')}</div>`;
+  } else if (libView === 'albums') {
+    const list = libAlbums.filter(a => !words.length || a.tracks.some(t => libMatch(t, words)));
+    body.innerHTML = list.length ? `<div class="lib-grid">${list.slice(0, lim).map(libAlbumCard).join('')}</div>` + libMoreBtn(Math.min(lim, list.length), list.length)
+      : `<div class="hint">Nothing matches.</div>`;
+  } else if (libView === 'artists') {
+    const list = libArtists.filter(r => !words.length || r.albums.some(a => a.tracks.some(t => libMatch(t, words))));
+    body.innerHTML = list.slice(0, lim).map(r => `<div class="lib-row" role="button" tabindex="0" data-artist="${libArtists.indexOf(r)}"><span class="lib-tt"><b>${esc(r.name)}</b>`
+      + `<span>${r.albums.length} ${r.albums.length === 1 ? 'album' : 'albums'} · ${r.songs} ${r.songs === 1 ? 'song' : 'songs'}</span></span></div>`).join('')
+      + libMoreBtn(Math.min(lim, list.length), list.length) || `<div class="hint">Nothing matches.</div>`;
+  } else {
+    libSongs = [];
+    for (const a of libAlbums) for (const t of a.tracks) if (!words.length || libMatch(t, words)) libSongs.push(t);
+    body.innerHTML = libSongs.slice(0, lim).map((t, i) => libRow(t, i, [t.a, t.al].filter(Boolean).join(' · '))).join('')
+      + libMoreBtn(Math.min(lim, libSongs.length), libSongs.length) || `<div class="hint">Nothing matches.</div>`;
+  }
+  libMark();
+}
+// the track playing (on the clock or here) and its album stand out
+function libMark() {
+  const here = uh && uhCur() && uhCur().path, on = p => p && (p === usbPlaying || p === here);
+  $$('#lib-body .lib-row[data-p]').forEach(r => r.classList.toggle('playing', on(r.dataset.p)));
+  const pa = [usbPlaying, here].map(p => p && libAlbumOf(p)).filter(Boolean);
+  $$('#lib-body .lib-alb').forEach(b => b.classList.toggle('playing', pa.includes(libAlbums[+b.dataset.alb])));
+}
+// play tracks from i where Plays on says; shuffle: true/false sets it first
+async function libPlay(tracks, i, shuffle) {
+  if (!tracks.length) return;
+  if (!plOut.spk && !plOut.here) { toast('Choose where to play: Clock speaker or This device'); return; }
+  if (shuffle !== undefined && shuffle !== usbShuffle) {
+    try { await post('/api/usb/opts', {shuffle}); usbShuffle = shuffle; usbToggles(); } catch (e) { /* keep the old order */ }
+  }
+  if (shuffle) i = Math.floor(Math.random() * tracks.length);
+  const paths = tracks.map(t => t.p);
+  if (plOut.spk) await usbPlayClock(paths[i], paths);
+  if (plOut.here) uhStart(tracks.map(libItem), i, 0);
+  else if (uh) uhStop();
+}
+$('#lib-view').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  libView = b.dataset.v; localStorage.setItem('lib-view', libView); libNav = []; libLimit = 0;
+  if (libView === 'folders' && usbDrive && !$('#usb-files').innerHTML) usbFiles('/');
+  libRender();
+});
+let libQT = 0;
+$('#lib-q').addEventListener('input', e => {
+  clearTimeout(libQT);
+  libQT = setTimeout(() => { libQ = e.target.value; libLimit = 0; if (libNav.length && libNav[libNav.length - 1].album) libNav = []; libRender(); }, 150);
+});
+$('#lib-crumbs').addEventListener('click', e => {
+  const b = e.target.closest('[data-nav]'); if (!b) return;
+  libNav = libNav.slice(0, +b.dataset.nav); libLimit = 0;
+  if (!libNav.length && libQ) { libQ = ''; $('#lib-q').value = ''; }
+  libRender();
+});
+$('#lib-body').addEventListener('error', e => { if (e.target.tagName === 'IMG') e.target.remove(); }, true);
+function libOpen(n) {
+  libNav.push(n); libLimit = 0; libRender();
+  const c = $('#lib-crumbs'); if (c.getBoundingClientRect().top < 0) c.scrollIntoView({block: 'start'});
+}
+function libClick(e) {
+  const t = e.target;
+  const more = t.closest('[data-more]');
+  if (more) { libLimit = (libLimit || (libView === 'songs' ? 200 : 60)) * 2; libRender(); return; }
+  const alb = t.closest('[data-alb]');
+  if (alb) return libOpen({album: libAlbums[+alb.dataset.alb]});
+  const art = t.closest('[data-artist]');
+  if (art) return libOpen({artist: libArtists[+art.dataset.artist]});
+  const top = libNav[libNav.length - 1];
+  const pb = t.closest('[data-albplay]');
+  if (pb && top && top.album) return libPlay(top.album.tracks, 0, pb.dataset.albplay === '1');
+  const row = t.closest('.lib-row[data-i]');
+  if (row) libPlay(top && top.album ? top.album.tracks : libSongs, +row.dataset.i);
+}
+$('#lib-body').addEventListener('click', libClick);
+$('#lib-body').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.lib-row')) { e.preventDefault(); libClick(e); } });
+async function usbStop() {
   try { await post('/api/play', {url: ''}); } catch (e) { /* the clock may have stopped it already */ }
   usbPlaying = ''; usbTrack = usbTotal = 0; usbElapsed = usbDur = 0; usbPaused = false; usbNow();
-};
+}
 const usbSkip = steps => async () => {
   try {
     await post('/api/usb/skip', {steps});
@@ -3835,9 +4816,7 @@ const usbSkip = steps => async () => {
     usbNow();
   } catch (e) { toast('Error: ' + e.message); }
 };
-$('#usb-prev').onclick = usbSkip(-1);
-$('#usb-next').onclick = usbSkip(1);
-$('#usb-pause').onclick = async () => {
+async function usbPause() {
   const to = !usbPaused;
   try {
     await post('/api/usb/pause', {paused: to});
@@ -3845,7 +4824,7 @@ $('#usb-pause').onclick = async () => {
     usbActAt = Date.now();
     usbNow();
   } catch (e) { toast('Error: ' + e.message); }
-};
+}
 $('#usb-shuffle').onclick = async () => {
   try {
     await post('/api/usb/opts', {shuffle: !usbShuffle});

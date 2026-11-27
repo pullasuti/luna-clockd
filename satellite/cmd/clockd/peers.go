@@ -36,6 +36,7 @@ type peer struct {
 	Name     string    `json:"name"`
 	Version  string    `json:"version"`
 	URL      string    `json:"url"`
+	IP       string    `json:"-"` // IPv4, for the wake word vote
 	Self     bool      `json:"self"`
 	Online   bool      `json:"online"`
 	LastSeen time.Time `json:"-"`
@@ -69,7 +70,8 @@ func (p *peerList) add(e *zeroconf.ServiceEntry, now time.Time) {
 		name = txt["id"]
 	}
 	p.mu.Lock()
-	p.m[txt["id"]] = &peer{ID: txt["id"], Name: name, Version: txt["ver"], URL: "http://" + host + "/", LastSeen: now}
+	p.m[txt["id"]] = &peer{ID: txt["id"], Name: name, Version: txt["ver"], URL: "http://" + host + "/",
+		IP: e.AddrIPv4[0].String(), LastSeen: now}
 	p.mu.Unlock()
 }
 

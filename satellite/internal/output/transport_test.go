@@ -30,6 +30,9 @@ func TestTrackMeta(t *testing.T) {
 	if info.Name != "Test Signal - Night Tone" {
 		t.Errorf("tagged flac name %q, want \"Test Signal - Night Tone\"", info.Name)
 	}
+	if info.Title != "Night Tone" || info.Artist != "Test Signal" {
+		t.Errorf("tagged flac title %q artist %q", info.Title, info.Artist)
+	}
 	if d := info.Duration.Seconds(); d < 0.29 || d > 0.31 {
 		t.Errorf("tagged flac duration %v, want ~0.3s", info.Duration)
 	}

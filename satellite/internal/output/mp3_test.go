@@ -93,6 +93,9 @@ func TestMP3Meta(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", tc.name, err)
 		}
+		if joinName(info.Title, info.Artist) != info.Name {
+			t.Errorf("%s: title %q artist %q do not make %q", tc.name, info.Title, info.Artist, info.Name)
+		}
 		if info.Name != tc.tag || info.Rate != tc.rate {
 			t.Errorf("%s: %q %d Hz, want %q %d", tc.name, info.Name, info.Rate, tc.tag, tc.rate)
 		}

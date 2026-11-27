@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -44,7 +45,7 @@ import (
 	"lenovo-satellite/internal/wifi"
 )
 
-const version = "1.0.0"
+const version = "1.7.0"
 
 type state int
 
@@ -73,12 +74,18 @@ const (
 )
 
 type daemon struct {
-	freqs     *freqStats   // CPU speed shares for the web UI
-	vol       float32      // the set master volume (0-1); shush ducks below it
-	shushLvl  float32      // current shush multiplier (1 = not ducking)
-	shushOn   bool         // a shush level is applied (restore once when it ends)
-	restart   func()       // restart clockd (start.sh starts it again)
-	peers     *peerList    // other clocks on the network (web UI picker)
+	freqs     *freqStats // CPU speed shares for the web UI
+	vol       float32    // the set master volume (0-1); shush ducks below it
+	shushLvl  float32    // current shush multiplier (1 = not ducking)
+	shushOn   bool       // a shush level is applied (restore once when it ends)
+	restart   func()     // restart clockd (start.sh starts it again)
+	peers     *peerList  // other clocks on the network (web UI picker)
+	vote      *wakeVote  // which clock answers a wake word several heard
+	radio     radioState // FM radio from an RTL-SDR stick
+	esp       *esphome.Server
+	ents      *esphome.Entities
+	voting    atomic.Bool  // a vote is running: no new detections meanwhile
+	wakeLvl   wakeLevel    // how clearly the wake word stood out (mic goroutine)
 	testUntil atomic.Int64 // wake word test run until (unix ns): log hits, start no turns
 	mic       *micSource
 	cfg       *config.Store
@@ -106,6 +113,8 @@ type daemon struct {
 	chimeSel    *esphome.Select // the "Hourly chime" dropdown (chime.go)
 	media       *output.Voice
 	mediaName   string     // what d.media is (URL or drive path), for the status page
+	mediaSrc    string     // where d.media comes from: fm, usb, dlna, url (Home Assistant), sleep
+	ssNow       string     // Music Assistant's "artist - title" (Sendspin metadata)
 	usbQ        *usbQueue  // the USB drive folder being played through, if any
 	usbPaused   *usbPaused // that folder paused, with where it stopped
 	usbShuffle  bool       // player options, remembered across folders (d.mu)
@@ -116,6 +125,7 @@ type daemon struct {
 	micGain     micGain
 	amb         *ambient
 	night       *nightCtl
+	dnd         *dndCtl
 	fw          *firmware      // the Firmware update entity in Home Assistant
 	playDown    time.Time      // action button press time (long press approves a web login)
 	playUsed    bool           // that press was consumed by the long-press action
@@ -367,6 +377,7 @@ func main() {
 	d.wx = wx
 	d.amb = &ambient{d: d}
 	d.night = newNightCtl(d)
+	d.dnd = newDNDCtl(d)
 	sun := &sunInfo{log: log}
 	d.night.sun = sun
 	d.face = &face{log: log, cfg: cfg, tk: tk, wx: wx, amb: d.amb, nt: d.night, eyes: newEyes()}
@@ -384,8 +395,12 @@ func main() {
 	d.face.mood = d.mood
 	d.face.haDown = d.haDown
 	d.face.sleepLeft = d.sleep.left
-	if err := ents.Add(append([]esphome.Entity{d.player, wx.entitySelect(), d.amb.entity(), d.night.entity(), d.fw.ent}, append(append(d.buildPeripherals(), d.sleep.entities()...), d.chimeEntity())...)...); err != nil {
+	d.esp, d.ents = srv, ents
+	if err := ents.Add(append([]esphome.Entity{d.player, wx.entitySelect(), d.amb.entity(), d.night.entity(), d.dnd.entity(), d.fw.ent}, append(append(d.buildPeripherals(), d.sleep.entities()...), d.chimeEntity())...)...); err != nil {
 		fatal(err)
+	}
+	if len(config.LoadState(d.statePath).RadioStations) > 0 {
+		d.radioAddEntity() // only on clocks that found stations (have had a stick)
 	}
 	if err := ents.AddActions(&esphome.Action{
 		Name: "show_text",
@@ -397,6 +412,26 @@ func main() {
 	}, &esphome.Action{
 		Name: "clear_text",
 		Run:  func(esphome.Call) (any, error) { d.face.clearText(); return nil, nil },
+	}, &esphome.Action{
+		// a colour on the status LEDs (washer done, door open...): color = a
+		// name or #rrggbb, seconds (0 = 10), style = pulse, blink or solid
+		Name: "led_notify",
+		Args: []esphome.Arg{{Name: "color", Type: esphome.ArgString}, {Name: "seconds", Type: esphome.ArgInt}, {Name: "style", Type: esphome.ArgString}},
+		Run: func(c esphome.Call) (any, error) {
+			err := d.notifyLEDs(c.String("color"), c.Int("seconds"), c.String("style"))
+			if err != nil { // HA doesn't show an action's error: the log does
+				d.log.Warn("led_notify", "err", err)
+			}
+			return nil, err
+		},
+	}, &esphome.Action{
+		Name: "led_clear",
+		Run: func(esphome.Call) (any, error) {
+			if d.clearLEDNotify() {
+				d.log.Info("LED notification cleared")
+			}
+			return nil, nil
+		},
 	}); err != nil {
 		fatal(err)
 	}
@@ -430,6 +465,7 @@ func main() {
 	go d.alarms.run(ctx)
 	go d.amb.run(ctx)
 	go d.night.run(ctx)
+	go d.dnd.run(ctx)
 	go d.startupTune(ctx)
 	go d.chimeLoop(ctx)
 	go d.runButtons(ctx)
@@ -467,12 +503,23 @@ func main() {
 			name: *name, friendly: *friendly, apiAddr: *addr, apiKey: psk.String()}
 		// a drive plugged in while the socket is in drive mode: "usb" on the
 		// face, then "err" when it has no filesystem the clock can read
+		wb.lib = &musicLib{cache: filepath.Join(*stateDir, "library.json"), log: log}
 		wb.usb = newUSBSock(*stateDir, log, func(mounted bool) {
 			d.face.flash("usb", 2*time.Second)
 			if !mounted {
 				time.AfterFunc(2*time.Second, func() { d.face.flash("err", 2*time.Second) })
 			}
 		})
+		go func() { // index a mounted drive's music without waiting for the page
+			for {
+				wb.lib.ensure(wb.usb.Drive())
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(5 * time.Second):
+				}
+			}
+		}()
 		if !adbOn() { // a locked clock has no adb: the socket starts on the USB drive
 			go func() {
 				if err := wb.usb.SetHost(true); err != nil {
@@ -519,6 +566,9 @@ func main() {
 			ClientID:    "clockd-" + strings.ReplaceAll(strings.ToLower(mac), ":", ""),
 			StaticDelay: time.Duration(max(0, min(sc.DelayMs, 1000))) * time.Millisecond,
 			OnMetadata: func(np string) {
+				d.mu.Lock()
+				d.ssNow = np
+				d.mu.Unlock()
 				if np != "" && d.cfg.Get().Sendspin.ShowNowPlaying {
 					d.face.showText(np, 1)
 				}
@@ -536,6 +586,10 @@ func main() {
 	nw := newNetWatch(d)
 	go nw.run(ctx.Done())
 	d.peers = newPeers(*name)
+	d.vote = newWakeVote(*name, log, d.peers.peerIPs)
+	if err := d.vote.listen(); err != nil {
+		log.Warn("wake vote: cannot listen, this clock answers every wake word it hears", "err", err)
+	}
 	// Wi-Fi: signal strength and network name to HA (every 30 s, or on change)
 	go func() {
 		lastN, lastR, at := "", -999, time.Time{}
@@ -718,6 +772,7 @@ func (d *daemon) onMic(s []int16) {
 		return
 	}
 	d.micGain.apply(s, d.cfg.Get().Voice.MicGainDB)
+	d.wakeLvl.feed(s)
 	lvl := d.micGain.level().PeakDB
 	testing := time.Now().UnixNano() < d.testUntil.Load()
 	// attempt clips (the buffer behind every Recent attempts row) and the
@@ -774,6 +829,9 @@ func (d *daemon) onMic(s []int16) {
 
 	switch st {
 	case stIdle:
+		if d.voting.Load() { // the clocks are deciding who answers
+			break
+		}
 		v := d.cfg.Get().Voice
 		easier := v.WakeEasierPlaying && sounding
 		now := time.Now()
@@ -801,7 +859,8 @@ func (d *daemon) onMic(s []int16) {
 					// starts, Home Assistant away, the music comes back)
 					d.dipUntil = time.Time{}
 					d.music.clear(lvlDip)
-					go d.startTurn(det.Model.Phrase, true)
+					d.voting.Store(true)
+					go d.voteTurn(det.Model.Phrase, d.wakeLvl.snr(), sc)
 				}
 				return
 			}
@@ -833,6 +892,21 @@ func (d *daemon) onMic(s []int16) {
 	}
 }
 
+// voteTurn lets the clocks that heard the wake word decide which one
+// answers (wakevote.go), then starts the turn here if it is this one. A
+// ringing alarm or timer is silenced here at once, and a clock that can't
+// answer (muted, Home Assistant away) doesn't take part.
+func (d *daemon) voteTurn(phrase string, snr, score float64) {
+	defer d.voting.Store(false)
+	d.mu.Lock()
+	vote := d.vote != nil && d.cfg.Get().Voice.WakeVote && d.alarm == nil && !d.muted
+	d.mu.Unlock()
+	if vote && d.sat.Subscribed() && !d.vote.decide(phrase, snr, score) {
+		return
+	}
+	d.startTurn(phrase, true)
+}
+
 func (d *daemon) startTurn(phrase string, chime bool) {
 	if d.stopAlarm() { // the wake word silences a ringing timer
 		return
@@ -862,7 +936,7 @@ func (d *daemon) startTurn(phrase string, chime bool) {
 
 	d.music.set(lvlTurn, duckGain) // duck music during the turn
 	var cv *output.Voice
-	if chime && d.cfg.Get().Voice.WakeSound {
+	if chime && d.cfg.Get().Voice.WakeSound && !d.dnd.On() { // do not disturb: the LEDs show it
 		cv = d.out.Play(output.NewSamples(d.chimeWake, 0), 1, "alert")
 	}
 	d.mu.Lock()
@@ -1147,6 +1221,11 @@ func (d *daemon) onTTSAudio(data []byte, end bool) {
 func (d *daemon) onAnnounce(a esphome.Announce) {
 	d.log.Info("announce", "text", a.Text, "media", shortURL(a.MediaID),
 		"preannounce", shortURL(a.PreannounceMediaID), "start_conversation", a.StartConversation)
+	if d.dnd.On() {
+		d.log.Info("announcement skipped: do not disturb", "text", a.Text)
+		d.sat.AnnounceFinished(true) // HA waits for this
+		return
+	}
 	go func() {
 		// counted: a second announcement can arrive while one plays
 		d.mu.Lock()
@@ -1197,7 +1276,7 @@ func (d *daemon) onTimer(t esphome.TimerEvent) {
 	if t.Type.String() != "VOICE_ASSISTANT_TIMER_FINISHED" {
 		return
 	}
-	d.ring("", "") // at most 5 minutes; the wake word, "stop" or a button stops it
+	d.ring("", "", 0) // at most 5 minutes; the wake word, "stop" or a button stops it
 }
 
 // ---- media player ----
@@ -1237,11 +1316,25 @@ func (d *daemon) playMediaURL(url string, announce bool) {
 		group = "voice"
 	}
 	d.log.Info("play media", "url", shortURL(url), "group", group)
+	if mhz, ok := strings.CutPrefix(url, "fm:"); ok && group == "media" {
+		// Home Assistant: media_content_id "fm:91.2" plays that FM station
+		var f float64
+		if _, err := fmt.Sscan(mhz, &f); err == nil {
+			if err := d.radioPlay(int(math.Round(f*10)) * fmStep); err != nil {
+				d.log.Warn("radio from Home Assistant", "err", err)
+			}
+		}
+		return
+	}
 	if group == "media" {
 		d.stopMedia()
-		d.startMedia(shortURL(url), func(buf *output.Buffer) error {
+		d.startMedia("url", shortURL(url), func(buf *output.Buffer) error {
 			return fetchAudio(d.log, url, buf, 0)
 		}, nil)
+		return
+	}
+	if d.dnd.On() {
+		d.log.Info("announcement skipped: do not disturb", "url", shortURL(url))
 		return
 	}
 	buf := output.NewBuffer(5)
@@ -1254,18 +1347,19 @@ func (d *daemon) playMediaURL(url string, announce bool) {
 	}()
 }
 
-// startMedia plays buf in the media group and tracks it as the current media
+// startMedia plays buf in the media group (from: the source for the status
+// page, see nowPlaying) and tracks it as the current media
 // (one at a time). fill decodes into buf from its own goroutine; playback ends
 // when fill returns and the buffer drains (or stopMedia aborts it). onEnd runs
 // when playback ended on its own — not when it was stopped or replaced — which
 // is what lets the USB folder queue continue with the next file.
-func (d *daemon) startMedia(name string, fill func(buf *output.Buffer) error, onEnd func()) {
-	d.startMediaWith(name, fill, onEnd, nil)
+func (d *daemon) startMedia(from, name string, fill func(buf *output.Buffer) error, onEnd func()) {
+	d.startMediaWith(from, name, fill, onEnd, nil)
 }
 
 // startMediaWith is startMedia with the buffer wrapped by wrap (nil: played
 // as it is), e.g. the DLNA renderer's pausable source. It returns the voice.
-func (d *daemon) startMediaWith(name string, fill func(buf *output.Buffer) error, onEnd func(), wrap func(*output.Buffer) output.Source) *output.Voice {
+func (d *daemon) startMediaWith(from, name string, fill func(buf *output.Buffer) error, onEnd func(), wrap func(*output.Buffer) output.Source) *output.Voice {
 	buf := output.NewBuffer(5)
 	var src output.Source = buf
 	if wrap != nil {
@@ -1273,7 +1367,7 @@ func (d *daemon) startMediaWith(name string, fill func(buf *output.Buffer) error
 	}
 	v := d.out.Play(src, 1, "media")
 	d.mu.Lock()
-	d.media, d.mediaBuf, d.mediaName = v, buf, name
+	d.media, d.mediaBuf, d.mediaName, d.mediaSrc = v, buf, name, from
 	d.mu.Unlock()
 	d.player.SetState(esphome.MediaPlayerPlaying)
 	go func() {
@@ -1284,7 +1378,7 @@ func (d *daemon) startMediaWith(name string, fill func(buf *output.Buffer) error
 		d.mu.Lock()
 		current := d.media == v
 		if current {
-			d.media, d.mediaBuf, d.mediaName = nil, nil, ""
+			d.media, d.mediaBuf, d.mediaName, d.mediaSrc = nil, nil, "", ""
 		}
 		d.mu.Unlock()
 		if current {
@@ -1299,10 +1393,21 @@ func (d *daemon) startMediaWith(name string, fill func(buf *output.Buffer) error
 
 // stopMedia ends playback of any media, including a USB folder queue (which
 // must not continue to its next file after this) and its pause state.
+// stopPlaying ends whatever plays: the clock's media, the radio (also for
+// stream listeners) and Music Assistant (paused there, as a spoken stop does).
+func (d *daemon) stopPlaying() {
+	d.radioStop()
+	d.stopMedia()
+	if d.sendspin != nil && d.sendspin.Playing() {
+		d.sendspin.Pause()
+	}
+	d.log.Info("playback stopped", "by", "web UI")
+}
+
 func (d *daemon) stopMedia() {
 	d.mu.Lock()
 	v, b := d.media, d.mediaBuf
-	d.media, d.mediaBuf, d.mediaName, d.usbQ, d.usbPaused = nil, nil, "", nil, nil
+	d.media, d.mediaBuf, d.mediaName, d.mediaSrc, d.usbQ, d.usbPaused = nil, nil, "", "", nil, nil
 	d.mu.Unlock()
 	if b != nil {
 		b.Abort()

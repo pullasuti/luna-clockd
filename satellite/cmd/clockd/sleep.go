@@ -127,7 +127,7 @@ func (s *sleepCtl) play(id string) error {
 	src := output.NewNoise(id, rand.Uint64())
 	v := d.out.Play(src, 1, "media")
 	d.mu.Lock()
-	d.media, d.mediaBuf, d.mediaName = v, nil, "Sleep sound: "+soundName(id)
+	d.media, d.mediaBuf, d.mediaName, d.mediaSrc = v, nil, "Sleep sound: "+soundName(id), "sleep"
 	d.mu.Unlock()
 	d.player.SetState(esphome.MediaPlayerPlaying)
 	s.mu.Lock()
@@ -151,7 +151,7 @@ func (s *sleepCtl) play(id string) error {
 		<-v.Done() // stopped: stopMedia, another media, the timer
 		d.mu.Lock()
 		if d.media == v {
-			d.media, d.mediaBuf, d.mediaName = nil, nil, ""
+			d.media, d.mediaBuf, d.mediaName, d.mediaSrc = nil, nil, "", ""
 		}
 		d.mu.Unlock()
 		s.mu.Lock()

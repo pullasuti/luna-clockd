@@ -76,3 +76,33 @@ func TestSaveLoad(t *testing.T) {
 		t.Errorf("round trip: %+v %v", out, err)
 	}
 }
+
+// skip the next: that one day is left out, the one after rings; a weekly
+// alarm then rings in two weeks; Clean checks the date
+func TestSkipNext(t *testing.T) {
+	loc := time.FixedZone("EET", 2*3600)
+	now := time.Date(2026, 11, 23, 12, 0, 0, 0, loc) // a Monday
+	wk := Alarm{Time: "06:45", Days: []int{1, 2, 3, 4, 5}, On: true}.SkipNext(now, true)
+	if wk.Skip != "2026-11-24" || !wk.Skipping(now) {
+		t.Fatalf("skip %q", wk.Skip)
+	}
+	if n := wk.Next(now); n.Format(time.DateTime) != "2026-11-25 06:45:00" {
+		t.Errorf("next after the skipped Tuesday: %v", n)
+	}
+	if wk.Skipping(time.Date(2026, 11, 25, 7, 0, 0, 0, loc)) {
+		t.Error("still skipping after the day")
+	}
+	mon := Alarm{Time: "08:00", Days: []int{1}, On: true}.SkipNext(now, true)
+	if n := mon.Next(now); n.Format(time.DateOnly) != "2026-12-07" {
+		t.Errorf("weekly with its next one skipped: %v", n)
+	}
+	if wk.SkipNext(now, false).Skip != "" {
+		t.Error("unskip")
+	}
+	if _, err := (List{{Time: "07:00", Skip: "tomorrow"}}).Clean(nil); err == nil {
+		t.Error("a bad skip date was accepted")
+	}
+	if l, err := (List{{Time: "07:00", Skip: "2026-11-24"}}).Clean(nil); err != nil || l[0].Skip != "2026-11-24" {
+		t.Errorf("clean: %v %v", l, err)
+	}
+}

@@ -140,6 +140,8 @@ On a locked clock (tested):
 **Voice satellite** over the ESPHome native API (encrypted, Noise PSK); HA discovers it
 over mDNS like any ESPHome device.
 - On-device wake words (microWakeWord), up to two active; a "Stop" word while it plays.
+- Several clocks in one room: the one that heard the wake word best answers (Voice ›
+  Nearest clock answers, on by default); the others stay quiet.
 - Microphone: the clock's raw microphones through WebRTC audio processing (echo cancelling
   only while the clock plays, noise suppression, gain) and a learned two-mic echo null. There
   is no choice to make: if it fails or isn't installed, the clock goes back to the vendor's
@@ -149,6 +151,53 @@ over mDNS like any ESPHome device.
   a live meter, a wake word history with near misses.
 - HA entities: mute, night light, LEDs, wake sound, Restart / Restart clockd buttons, a
   firmware entity showing the version.
+
+**FM radio** (experimental) from an RTL-SDR USB stick, tuned by the clock itself; no
+internet or Home Assistant needed:
+- Supported sticks: RTL2832U with an R820T or R820T2 tuner (USB 0bda:2838 or 0bda:2832),
+  the common cheap kind. Tested with one generic RTL2838UHIDIR stick. Other tuners
+  (RTL-SDR Blog V4 / R828D, E4000, FC0013 and others) are not supported yet: the Player
+  then says the stick's tuner is not supported. Sticks without a temperature-stable crystal may sit a few kHz
+  off a station; this is untested.
+- Audio › Player: station search, a band dial, six favourites, stereo and station names
+  (RDS). Choose where it plays first (Clock speaker, This device, or both), then a station.
+  On both, the browser runs a few seconds behind the clock (the stream is buffered).
+  On This device the phone's lock screen and media keys show the station and can
+  pause it or step to the next one.
+- Home Assistant: an FM radio dropdown (the favourites, or every station found when there
+  are none) and `fm:<MHz>` as a media id (e.g. `fm:91.2`) for play media.
+- A stream link for other players on your network (Home Assistant, Music Assistant, VLC):
+  FLAC at 32 kHz, about 0.8 Mbit/s; `.wav` instead of `.flac` for players without FLAC.
+- Wake up to the radio: an alarm's sound can be a station (the timer sound if the stick
+  is missing).
+- Audio › FM radio: Region (the band and de-emphasis: Europe and most of the world, the
+  Americas and South Korea, or Japan) and Reception (Weak gives the tuner more gain for
+  far stations, Strong less when a transmitter nearby makes stations bleed together).
+- The stick goes in the USB socket with System › USB on "USB drive" (a hub is untested).
+  On an unlocked clock a restart switches the socket back to adb, so switch it again
+  after a power cut; a locked clock stays on USB drive.
+
+**Music from a USB drive:** with System › USB on "USB drive" (FAT or ext2-4, mounted
+read-only), Audio › Player › USB drive is a music library: albums with their covers,
+artists and songs from the files' tags, and a filter across all three. The clock reads the
+tags in the background when the drive goes in and keeps the index, so the next time only
+new or changed files are read; untagged files are sorted in by their folder and file
+names ("Artist - Album (2006)/01. Song.flac"). A song plays with the rest of its album
+(or of the list it was picked from) after it; pause, previous/next, shuffle and repeat.
+Folders shows the drive as it is. FLAC, MP3 and WAV. It plays where Plays on says:
+- Clock speaker: the clock plays the files. A Clock volume slider sits right there (the
+  same volume as Audio › Volume and Home Assistant's media player).
+- This device: your browser fetches the files from the clock and plays them itself,
+  with seeking and lock-screen controls. It has its own queue, so the clock can play
+  something else meanwhile, and closing the page stops it.
+- Both: two separate players, **not in sync**: each starts on its own and drifts apart.
+  This is for listening in another room, not for one sound from two speakers (for
+  that, use Music Assistant's synchronised playback).
+
+The DLNA card can share the drive with Home Assistant's media browser and DLNA apps.
+
+The Player also shows whatever else the clock plays (Music Assistant, Home Assistant,
+DLNA) with a Stop, and the Audio tab gets a dot while something plays.
 
 **Music Assistant speaker (Sendspin):** discovered automatically, synchronised playback,
 volume and mute from Music Assistant, "artist - title" on the face.
@@ -165,10 +214,22 @@ time is known):
 - Once, every day, weekdays, weekends or chosen days; set in the web UI or with the
   clock's buttons as on the stock firmware.
 - The alarm button stops one; any other button snoozes it (5-20 minutes).
-- Ten sounds (beeps and short tunes, all generated on the clock).
+- Ten sounds (beeps and short tunes, all generated on the clock), an FM station when
+  an RTL-SDR stick is plugged in, or a song from the USB drive (Sound › Music from the
+  USB drive…, then find the song). The song repeats until you stop the alarm. If the
+  drive or the song is missing, or the song doesn't start within 3 seconds, the alarm
+  rings with the timer sound instead, so it always rings.
 - Optional sunrise: the night light comes up before the alarm when the room is dark.
-- Home Assistant sees the next alarm and can set, switch, delete and list alarms (actions
-  `esphome.<clock>_set_alarm`, `_switch_alarm`, `_delete_alarm`, `_list_alarms`).
+- Home Assistant sees the next alarm and can set, switch, delete and list alarms
+  ([actions](#home-assistant-actions)).
+
+**Notifications from Home Assistant:** text scrolled on the face and a colour on the
+status LEDs ([actions](#home-assistant-actions)). Alarms and voice turns show over an LED
+notification; it comes back after them if its time isn't up.
+
+**Do not disturb:** by hand, while night mode is on or between own times; silences the
+hourly chime, the wake sound, Home Assistant's announcements and the startup sound, never
+alarms, timers or answers. A switch in HA.
 
 **Night schedule:** fixed times or sunset/sunrise from HA; dims or turns off the face and
 fades the night light; a switch in HA.
@@ -177,6 +238,81 @@ fades the night light; a switch in HA.
 applies instantly; Wi-Fi scan and switching with fallback; a clock picker for your other
 clocks; a readable live log; login by button (a 4-digit code on the face, approve with the
 action button); colour themes.
+
+## Home Assistant actions
+
+The clock offers these actions to Home Assistant (Developer tools › Actions, scripts,
+automations). Their names start with `esphome.<clock>_`, where `<clock>` is the clock's
+ESPHome device name (e.g. `lenovo_clock_1a2b`); it can differ from its entity names, so
+look them up in Developer tools › Actions. HA doesn't show an action's error: a refused
+call (a misspelt colour, an unknown alarm) is logged on the clock (System › Logs).
+
+| Action | Does |
+|---|---|
+| `_show_text`, `_clear_text` | scroll a message across the face; drop the messages |
+| `_led_notify`, `_led_clear` | a colour on the status LEDs; end it early |
+| `_set_alarm`, `_switch_alarm`, `_delete_alarm` | add, switch on/off or remove one of the clock's alarms |
+| `_list_alarms` | the alarms and the next one, as a response |
+
+### Text on the face
+
+`_show_text` scrolls a message across the four big digits.
+
+| Field | Values |
+|---|---|
+| `text` | the message, drawn as closely as seven segments allow; accents are dropped (ä → a), punctuation and unknown characters become a gap |
+| `repeat` | how many times it scrolls, 1-20 (0 = once) |
+
+Messages queue (up to 10; the oldest goes first when full) and play one after another at
+the scroll speed set in Display › Text messages, where a preview shows how a text reads on
+the digits. `_clear_text` drops the current and queued messages.
+
+```yaml
+action: esphome.<clock>_show_text
+data:
+  text: Washer done
+  repeat: 2
+```
+
+### LED notifications
+
+`_led_notify` shows a colour on all four status LEDs, at the Status LEDs brightness set in
+the web UI. A new notification replaces the one showing; `_led_clear` ends it early.
+
+| Field | Values |
+|---|---|
+| `color` | `red`, `orange`, `yellow`, `green`, `cyan`, `blue`, `purple`, `pink`, `white`, or `#rrggbb` |
+| `seconds` | how long it shows; 0 = 10 s, at most 3600 |
+| `style` | `pulse` (slow breathing, 2 s; also when left empty), `blink` (0.5 s on / off) or `solid` |
+
+```yaml
+action: esphome.<clock>_led_notify
+data:
+  color: orange
+  seconds: 20
+  style: blink
+```
+
+### Alarms
+
+| Action | Fields |
+|---|---|
+| `_set_alarm` | `time` `HH:MM` (24 h); `days` `once` (or empty), `daily`, `weekdays`, `weekends` or day names such as `mon,wed,fri`; `label` (optional, a name to find it by). A new alarm is on, with the default sound and fade |
+| `_switch_alarm` | `alarm` its label or `HH:MM`; `on` true or false |
+| `_delete_alarm` | `alarm` its label or `HH:MM` |
+| `_list_alarms` | none; returns `alarms` (each with `id`, `time`, `on`, and when set `days` as numbers 0 = Sunday to 6 = Saturday, `label`, `sound`, `sunrise`, `fade`) and `next` (`at` as a full date and time, `time`, `label`; empty when no alarm is on) |
+
+```yaml
+action: esphome.<clock>_set_alarm
+data:
+  time: "06:45"
+  days: weekdays
+  label: work
+```
+
+`_list_alarms` answers with data: in a script, add `response_variable: alarms` to the call
+and read `alarms.next.at`. Sound, fade and snooze length are set in the web UI or with the
+clock's buttons.
 
 ## How it works
 
@@ -224,8 +360,9 @@ What is left running: clockd and its helpers (`apmd` for the microphone, `udhcpc
 **Network**
 
 - **Listening:** the web UI (80), the ESPHome API (6053, encrypted), Music Assistant /
-  Sendspin (8928), mDNS (5353), ssh (22, only with keys), and adb (5555, while the clock
-  is unlocked). Stock had the Cast ports (8008, 8009, 8443, 10001 and more). DLNA is off
+  Sendspin (8928), mDNS (5353), the wake word vote between clocks (UDP 6054, only from
+  clocks found by mDNS), ssh (22, only with keys), and adb (5555, while the clock is
+  unlocked). Stock had the Cast ports (8008, 8009, 8443, 10001 and more). DLNA is off
   unless you switch it on. During setup only: DHCP and DNS on the setup hotspot, behind a
   firewall that allows nothing else.
 - **Outgoing:** to your own network only: Home Assistant, Music Assistant, your router
@@ -257,6 +394,11 @@ clockd and every helper, built and signed. To build from source, run
 whatever helpers are in `satellite/build/` (table below). A plain build has none of them:
 the clock then has no setup hotspot, no ssh and the vendor's microphone processing, so
 save a Wi-Fi network with `--wifi`, or build the helpers first.
+
+Your own builds run on your clock: `install-clock.sh --build` installs them over adb, and
+on a clock with ssh you can copy a build to `/data/local/clockd/clockd.new` and run
+`restart.sh`. Only the in-app update checks the release signature; that is for our
+packages, it never stops a build of your own.
 
 Go 1.21 or newer: the build switches to the version `satellite/go.mod` names (1.27.3) and
 downloads it on first use (`GOTOOLCHAIN=auto`; `install-clock.sh` sets it, since some
@@ -376,6 +518,12 @@ This is a home-LAN device for now:
 
 ## Credits
 
+clockd is licensed under the GNU GPL version 3 or later (releases up to 1.0.0: Apache-2.0).
+
+- FM radio: the RTL2832U setup follows [librtlsdr](https://osmocom.org/projects/rtl-sdr)
+  (osmocom rtl-sdr, GPL-2.0-or-later) by Steve Markgraf, Dimitri Stolnikov and
+  contributors. The R820T tuner driver is written from Rafael Micro's R820T2 register
+  description. Where the code came from: `docs/radio-provenance.md`.
 - Icons: [Lucide](https://lucide.dev) (ISC, `satellite/internal/web/LICENSE-lucide.txt`),
   embedded so nothing loads from the internet.
 - [webrtc-audio-processing](https://gitlab.freedesktop.org/pulseaudio/webrtc-audio-processing)

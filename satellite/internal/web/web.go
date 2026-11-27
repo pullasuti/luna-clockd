@@ -4,17 +4,24 @@
 package web
 
 import (
+	"compress/gzip"
 	"context"
+	"crypto/subtle"
 	"embed"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
+	"os"
+	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -63,6 +70,23 @@ type Server struct {
 	// SetupConfirm, when set, makes the setup page wait for the button.
 	SetupConfirm *SetupConfirm
 }
+
+// audioType: the Content-Type of a drive's audio file (by its extension).
+func audioType(name string) string {
+	switch strings.ToLower(path.Ext(name)) {
+	case ".flac":
+		return "audio/flac"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".wav":
+		return "audio/wav"
+	}
+	return "application/octet-stream"
+}
+
+// radioStall: how long a radio stream write may block before the listener
+// counts as gone (a variable for the tests).
+var radioStall = 10 * time.Second
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -186,6 +210,31 @@ func (s *Server) Handler() http.Handler {
 		s.Log.Info("web: alarms saved", "peer", r.RemoteAddr)
 		writeJSON(w, a.Alarms())
 	})
+	// skip (or stop skipping) an alarm's next ring: the clock works out which
+	// day that is, in its own time zone
+	mux.HandleFunc("POST /api/alarms/skip", func(w http.ResponseWriter, r *http.Request) {
+		a, ok := s.Backend.(interface {
+			Alarms() any
+			SkipAlarm(id string, skip bool) error
+		})
+		if !ok {
+			httpError(w, http.StatusNotFound, errors.New("no alarms on this clock"))
+			return
+		}
+		var m struct {
+			ID   string `json:"id"`
+			Skip bool   `json:"skip"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&m); err != nil {
+			httpError(w, http.StatusBadRequest, err)
+			return
+		}
+		if err := a.SkipAlarm(m.ID, m.Skip); err != nil {
+			httpError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, a.Alarms())
+	})
 	mux.HandleFunc("GET /api/ha/discover", func(w http.ResponseWriter, r *http.Request) {
 		f, ok := s.Backend.(interface{ FindHomeAssistant() any })
 		if !ok {
@@ -271,6 +320,90 @@ func (s *Server) Handler() http.Handler {
 		s.Log.Info("web: USB mode change requested", "host", m.Host, "peer", r.RemoteAddr)
 		writeJSON(w, u.USB())
 	})
+	// a drive file for the browser to play itself (Player › USB drive on This
+	// device): ranges, so it can seek; behind the login like all of /api/
+	mux.HandleFunc("GET /api/usb/file", func(w http.ResponseWriter, r *http.Request) {
+		u, ok := s.Backend.(interface {
+			USBOpen(path string) (*os.File, string, error)
+		})
+		if !ok {
+			httpError(w, http.StatusNotFound, errors.New("no USB socket on this clock"))
+			return
+		}
+		f, p, err := u.USBOpen(r.URL.Query().Get("path"))
+		if err != nil {
+			httpError(w, http.StatusNotFound, err)
+			return
+		}
+		defer f.Close()
+		fi, err := f.Stat()
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err)
+			return
+		}
+		if rg := r.Header.Get("Range"); rg == "" || strings.HasPrefix(rg, "bytes=0-") {
+			s.Log.Info("web: USB file to a browser", "path", p, "peer", r.RemoteAddr)
+		}
+		w.Header().Set("Content-Type", audioType(p))
+		w.Header().Set("Cache-Control", "private, max-age=3600")
+		http.ServeContent(w, r, "", fi.ModTime(), f)
+	})
+	// the drive's music library: ?brief=1 the scan's state only, else the
+	// whole index (gzipped: a big drive's runs to megabytes)
+	mux.HandleFunc("GET /api/usb/library", func(w http.ResponseWriter, r *http.Request) {
+		u, ok := s.Backend.(interface {
+			USBLibrary(full bool) map[string]any
+		})
+		if !ok {
+			httpError(w, http.StatusNotFound, errors.New("no USB socket on this clock"))
+			return
+		}
+		m := u.USBLibrary(r.URL.Query().Get("brief") == "")
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			writeJSON(w, m)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Encoding", "gzip")
+		zw := gzip.NewWriter(w)
+		json.NewEncoder(zw).Encode(m)
+		zw.Close()
+	})
+	// a drive file's cover (embedded, else the folder's image; scaled down,
+	// ?size=64..600 for thumbnails)
+	mux.HandleFunc("GET /api/usb/art", func(w http.ResponseWriter, r *http.Request) {
+		u, ok := s.Backend.(interface {
+			USBArt(path string, side int) ([]byte, string, error)
+		})
+		if !ok {
+			httpError(w, http.StatusNotFound, errors.New("no USB socket on this clock"))
+			return
+		}
+		side, _ := strconv.Atoi(r.URL.Query().Get("size"))
+		data, mime, err := u.USBArt(r.URL.Query().Get("path"), side)
+		if err != nil {
+			httpError(w, http.StatusNotFound, err)
+			return
+		}
+		w.Header().Set("Content-Type", mime)
+		w.Header().Set("Cache-Control", "private, max-age=86400")
+		w.Write(data)
+	})
+	mux.HandleFunc("GET /api/usb/meta", func(w http.ResponseWriter, r *http.Request) {
+		u, ok := s.Backend.(interface {
+			USBMeta(path string) (map[string]any, error)
+		})
+		if !ok {
+			httpError(w, http.StatusNotFound, errors.New("no USB socket on this clock"))
+			return
+		}
+		m, err := u.USBMeta(r.URL.Query().Get("path"))
+		if err != nil {
+			httpError(w, http.StatusNotFound, err)
+			return
+		}
+		writeJSON(w, m)
+	})
 	mux.HandleFunc("GET /api/usb/files", func(w http.ResponseWriter, r *http.Request) {
 		u, ok := s.Backend.(interface {
 			USBFiles(path string) (map[string]any, error)
@@ -286,22 +419,180 @@ func (s *Server) Handler() http.Handler {
 		}
 		writeJSON(w, files)
 	})
+	// FM radio (an RTL-SDR stick on the USB socket)
+	type radioStreamer interface {
+		RadioToken(renew bool) string
+		RadioListen(hz int) (<-chan []byte, func(), error)
+	}
+	type radioBackend interface {
+		Radio() map[string]any
+		RadioPlay(hz int) error
+		RadioRetune(hz int) error // for the listeners only (speaker: false)
+		RadioStop()
+		RadioSearch() error
+	}
+	mux.HandleFunc("GET /api/radio", func(w http.ResponseWriter, r *http.Request) {
+		rb, ok := s.Backend.(radioBackend)
+		if !ok {
+			httpError(w, http.StatusNotFound, errors.New("no radio on this clock"))
+			return
+		}
+		writeJSON(w, rb.Radio())
+	})
+	mux.HandleFunc("POST /api/radio/{op}", func(w http.ResponseWriter, r *http.Request) {
+		rb, ok := s.Backend.(radioBackend)
+		if !ok {
+			httpError(w, http.StatusNotFound, errors.New("no radio on this clock"))
+			return
+		}
+		var err error
+		switch r.PathValue("op") {
+		case "play":
+			var m struct {
+				Hz      int   `json:"hz"`
+				Speaker *bool `json:"speaker"` // false: only for those listening (Listen here)
+			}
+			if err = json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&m); err == nil {
+				if m.Speaker != nil && !*m.Speaker {
+					err = rb.RadioRetune(m.Hz)
+				} else {
+					err = rb.RadioPlay(m.Hz)
+				}
+			}
+			s.Log.Info("web: radio play", "hz", m.Hz, "peer", r.RemoteAddr)
+		case "stop":
+			rb.RadioStop()
+		case "search":
+			err = rb.RadioSearch()
+			s.Log.Info("web: radio station search", "peer", r.RemoteAddr)
+		case "favs":
+			fb, ok := s.Backend.(interface{ RadioSetFavs(favs []int) error })
+			if !ok {
+				httpError(w, http.StatusNotFound, errors.New("no favourites on this clock"))
+				return
+			}
+			var m struct {
+				Favs []int `json:"favs"`
+			}
+			if err = json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&m); err == nil {
+				err = fb.RadioSetFavs(m.Favs)
+			}
+		case "newlink":
+			if st, ok := s.Backend.(radioStreamer); ok {
+				st.RadioToken(true)
+				s.Log.Info("web: radio stream link renewed", "peer", r.RemoteAddr)
+			}
+		default:
+			httpError(w, http.StatusNotFound, errors.New("unknown radio action"))
+			return
+		}
+		if err != nil {
+			httpError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, rb.Radio())
+	})
+	// the radio as an endless stream for other players (Home Assistant, Music
+	// Assistant, a browser): <token>.flac (32 kHz FLAC, about half the size;
+	// FM audio stops at 15 kHz) or <token>.wav (16-bit 48 kHz, 1.5 Mbit/s).
+	// Outside /api: such players have no session, so the token in the path is
+	// the key. ?mhz=91.2 picks the station when the clock plays none (or only
+	// for listeners).
+	mux.HandleFunc("GET /radio/{file}", func(w http.ResponseWriter, r *http.Request) {
+		rs, ok := s.Backend.(radioStreamer)
+		file := r.PathValue("file")
+		tok, isFLAC := strings.CutSuffix(file, ".flac")
+		if !isFLAC {
+			var wav bool
+			if tok, wav = strings.CutSuffix(file, ".wav"); !wav {
+				tok = ""
+			}
+		}
+		if !ok || tok == "" || subtle.ConstantTimeCompare([]byte(tok), []byte(rs.RadioToken(false))) != 1 {
+			http.NotFound(w, r)
+			return
+		}
+		hz := 0
+		if m := r.URL.Query().Get("mhz"); m != "" {
+			f, err := strconv.ParseFloat(m, 64)
+			if err != nil {
+				httpError(w, http.StatusBadRequest, errors.New("mhz: a frequency such as 91.2"))
+				return
+			}
+			hz = int(math.Round(f*10)) * 100_000
+		}
+		w.Header().Set("Content-Type", "audio/wav")
+		if isFLAC {
+			w.Header().Set("Content-Type", "audio/flac")
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		if r.Method == http.MethodHead {
+			return
+		}
+		c, done, err := rs.RadioListen(hz)
+		if err != nil {
+			httpError(w, http.StatusConflict, err)
+			return
+		}
+		defer done()
+		s.Log.Info("web: radio listener", "peer", r.RemoteAddr, "flac", isFLAC)
+		defer s.Log.Info("web: radio listener left", "peer", r.RemoteAddr)
+		// each block of 48 kHz 16-bit stereo goes out as it is (WAV) or
+		// through the resampler into the FLAC encoder (a frame per 128 ms)
+		send := func(b []byte) error { _, err := w.Write(b); return err }
+		if isFLAC {
+			fs, err := newFLACStream(w, 32_000)
+			if err != nil {
+				return
+			}
+			res := newResampler32()
+			var sl, sr []int16
+			send = func(b []byte) error {
+				sl, sr = res.process(b, sl[:0], sr[:0])
+				return fs.write(sl, sr)
+			}
+		} else if _, err := w.Write(streamWAVHeader(48_000, 2)); err != nil {
+			return
+		}
+		// a listener that stops reading (a phone asleep, Wi-Fi gone) would block
+		// a write forever without the connection ever closing, and keep the
+		// radio running for nobody: each block must go out within radioStall
+		rc := http.NewResponseController(w)
+		for {
+			select {
+			case b, ok := <-c:
+				if !ok {
+					return
+				}
+				rc.SetWriteDeadline(time.Now().Add(radioStall))
+				if err := send(b); err != nil {
+					return
+				}
+				if err := rc.Flush(); err != nil {
+					return
+				}
+			case <-r.Context().Done():
+				return
+			}
+		}
+	})
 	mux.HandleFunc("POST /api/usb/play", func(w http.ResponseWriter, r *http.Request) {
 		u, ok := s.Backend.(interface {
-			USBPlay(path string) error
+			USBPlay(path string, queue []string) error
 		})
 		if !ok {
 			httpError(w, http.StatusNotFound, errors.New("no USB socket on this clock"))
 			return
 		}
 		var m struct {
-			Path string `json:"path"`
+			Path  string   `json:"path"`
+			Queue []string `json:"queue"` // from the library: the order to play in
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&m); err != nil {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20)).Decode(&m); err != nil {
 			httpError(w, http.StatusBadRequest, err)
 			return
 		}
-		if err := u.USBPlay(m.Path); err != nil {
+		if err := u.USBPlay(m.Path, m.Queue); err != nil {
 			httpError(w, http.StatusBadRequest, err)
 			return
 		}
@@ -642,6 +933,25 @@ func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	json.NewEncoder(w).Encode(v)
+}
+
+// streamWAVHeader is a 16-bit PCM WAV header for a stream of unknown length
+// (sizes at their maximum, as players expect for live streams).
+func streamWAVHeader(rate, channels int) []byte {
+	h := make([]byte, 44)
+	copy(h, "RIFF")
+	binary.LittleEndian.PutUint32(h[4:], 0xFFFFFFFF)
+	copy(h[8:], "WAVEfmt ")
+	binary.LittleEndian.PutUint32(h[16:], 16)
+	binary.LittleEndian.PutUint16(h[20:], 1) // PCM
+	binary.LittleEndian.PutUint16(h[22:], uint16(channels))
+	binary.LittleEndian.PutUint32(h[24:], uint32(rate))
+	binary.LittleEndian.PutUint32(h[28:], uint32(rate*channels*2))
+	binary.LittleEndian.PutUint16(h[32:], uint16(channels*2))
+	binary.LittleEndian.PutUint16(h[34:], 16)
+	copy(h[36:], "data")
+	binary.LittleEndian.PutUint32(h[40:], 0xFFFFFFFF-36)
+	return h
 }
 
 func httpError(w http.ResponseWriter, code int, err error) {

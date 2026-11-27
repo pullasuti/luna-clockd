@@ -22,6 +22,7 @@ import (
 	"lenovo-satellite/internal/haapi"
 	"lenovo-satellite/internal/output"
 	"lenovo-satellite/internal/release"
+	"lenovo-satellite/internal/rtlsdr"
 	"lenovo-satellite/internal/timesync"
 	"lenovo-satellite/internal/web"
 )
@@ -43,11 +44,34 @@ type webBackend struct {
 	name, friendly, apiAddr string
 	apiKey                  string // ESPHome API encryption key (base64)
 
-	usb *usbSock // the USB-A socket: adb or host mode, drive listing
+	usb *usbSock  // the USB-A socket: adb or host mode, drive listing
+	lib *musicLib // the drive's music library (usblib.go)
+}
+
+// USBLibrary is the library index's state; full adds every track.
+func (b *webBackend) USBLibrary(full bool) map[string]any {
+	b.lib.ensure(b.usb.Drive())
+	return b.lib.status(full)
 }
 
 // USB is the System > USB panel's status (mode, drive, space).
 func (b *webBackend) USB() map[string]any { return b.usb.Status() }
+
+// FM radio (radio.go).
+func (b *webBackend) Radio() map[string]any  { return b.d.radioStatus() }
+func (b *webBackend) RadioPlay(hz int) error { return b.d.radioPlay(hz) }
+func (b *webBackend) RadioRetune(hz int) error {
+	return b.d.radioRetune(hz)
+}
+func (b *webBackend) RadioStop()                    { b.d.radioStop() }
+func (b *webBackend) RadioSearch() error            { return b.d.radioSearch() }
+func (b *webBackend) RadioSetFavs(favs []int) error { return b.d.radioSetFavs(favs) }
+func (b *webBackend) RadioToken(renew bool) string {
+	return b.d.radioToken(renew)
+}
+func (b *webBackend) RadioListen(hz int) (<-chan []byte, func(), error) {
+	return b.d.radioListen(hz)
+}
 
 // Sleep sounds and timer (sleep.go).
 func (b *webBackend) Sleep() map[string]any { return b.d.sleep.Status() }
@@ -67,21 +91,48 @@ func (b *webBackend) SleepTimer(minutes int) error { return b.d.sleep.setTimer(m
 // enumerate before it can mount.
 func (b *webBackend) SetUSBMode(host bool) error { return b.usb.SetHost(host) }
 
+// USBOpen opens an audio file of the mounted drive for a browser to play
+// (This device); the caller closes it.
+func (b *webBackend) USBOpen(file string) (*os.File, string, error) { return b.usb.OpenAudio(file) }
+
+// USBMeta: a drive file's tags and length for the browser's player (This
+// device), read from its header like the clock's queue does.
+func (b *webBackend) USBMeta(file string) (map[string]any, error) {
+	f, p, err := b.usb.OpenAudio(file)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := output.TrackMeta(f)
+	if err != nil {
+		return map[string]any{"path": p}, nil // unreadable header: the file name will do
+	}
+	return map[string]any{"path": p, "title": info.Title, "artist": info.Artist, "album": info.Album,
+		"name": info.Name, "duration": info.Duration.Seconds()}, nil
+}
+
 // USBFiles lists one directory of the mounted drive (confined to the mount).
 func (b *webBackend) USBFiles(path string) (map[string]any, error) { return b.usb.Files(path) }
 
 // USBPlay plays a FLAC, MP3 or WAV file from the mounted drive (the USB panel's
 // play buttons) through the media path, so the stop word and volume apply.
 // The file's folder becomes the queue: when a file ends on its own, the next
-// one starts, until the folder is through or something stops it.
-func (b *webBackend) USBPlay(file string) error {
+// one starts, until the folder is through or something stops it. A queue
+// (from the library: an album, an artist, the songs listed) replaces the
+// folder: the file plays with the queue's other files around it, in order.
+func (b *webBackend) USBPlay(file string, queue []string) error {
 	f, p, err := b.usb.OpenAudio(file)
 	if err != nil {
 		return err
 	}
 	f.Close() // playUSB reopens it: one owner at a time
-	list, _ := b.usb.Files(path.Dir(p))
-	q := queueFromList(entriesOf(list), p)
+	var q *usbQueue
+	if len(queue) > 0 {
+		q = queueFromPaths(queue, p)
+	} else {
+		list, _ := b.usb.Files(path.Dir(p))
+		q = queueFromList(entriesOf(list), p)
+	}
 	b.loadMeta(q)
 	d := b.d
 	d.mu.Lock()
@@ -147,7 +198,7 @@ func (b *webBackend) USBPause(on bool) error {
 		el := d.usbElapsed()
 		d.mu.Lock()
 		v, buf := d.media, d.mediaBuf
-		d.media, d.mediaBuf, d.mediaName = nil, nil, ""
+		d.media, d.mediaBuf, d.mediaName, d.mediaSrc = nil, nil, "", ""
 		d.usbQ = nil
 		d.usbPaused = &usbPaused{q: q, elapsed: el}
 		d.mu.Unlock()
@@ -182,6 +233,10 @@ type usbPaused struct {
 // track that fails to open keeps zeros and shows elapsed and the file name).
 func (b *webBackend) loadMeta(q *usbQueue) {
 	for i := range q.tracks {
+		if t, ok := b.lib.lookup(q.tracks[i].path); ok { // indexed: no file to open
+			q.tracks[i].dur, q.tracks[i].name = time.Duration(t.Secs)*time.Second, joinTitle(t)
+			continue
+		}
 		f, _, err := b.usb.OpenAudio(q.tracks[i].path)
 		if err != nil {
 			continue
@@ -250,7 +305,7 @@ func (b *webBackend) playUSBAt(q *usbQueue, oi int, skip time.Duration) {
 	if track.name != "" && d.cfg.Get().Sendspin.ShowNowPlaying {
 		d.face.showText(track.name, 1) // the same scroll Music Assistant's titles get
 	}
-	d.startMedia(p, func(buf *output.Buffer) error {
+	d.startMedia("usb", p, func(buf *output.Buffer) error {
 		defer f.Close()
 		return output.DecodeFrom(f, skip, buf)
 	}, func() { // ended on its own: continue where the order says
@@ -346,12 +401,68 @@ func (b *webBackend) MicLevel() map[string]any {
 		"gain_db": l.GainDB, "muted": muted, "fresh": time.Since(l.At) < time.Second}
 }
 
+// nowPlaying is what the clock plays, whatever started it: the Player card,
+// the Audio tab's indicator and the page's Media Session read it.
+type nowPlaying struct {
+	Source    string `json:"source"` // "" (nothing), fm, usb, dlna, url (Home Assistant), sleep, music_assistant
+	Title     string `json:"title"`
+	Detail    string `json:"detail,omitempty"`
+	Paused    bool   `json:"paused,omitempty"`
+	OnClock   bool   `json:"on_clock"`            // false: the radio plays only for stream listeners
+	Listeners int    `json:"listeners,omitempty"` // radio stream listeners
+}
+
+// nowPlayingLocked: the current playback (d.mu held). The USB queue and the
+// clock's own media come first, then a radio that plays only for listeners,
+// then Music Assistant (ssPlaying: its Playing(), asked before d.mu).
+func (d *daemon) nowPlayingLocked(ssPlaying bool) nowPlaying {
+	r := &d.radio
+	r.mu.Lock()
+	hz, rname, speaker, listeners := r.hz, r.name, r.speaker, len(r.listeners)
+	r.mu.Unlock()
+	fm := func(on bool) nowPlaying {
+		n := nowPlaying{Source: "fm", Title: fmt.Sprintf("FM %.1f MHz", float64(hz)/1e6), OnClock: on, Listeners: listeners}
+		if rname != "" {
+			n.Title, n.Detail = rname, n.Title
+		}
+		return n
+	}
+	usb := func(q *usbQueue, paused bool) nowPlaying {
+		t := q.track()
+		n := nowPlaying{Source: "usb", Title: t.name, Paused: paused, OnClock: true}
+		if n.Title == "" {
+			n.Title = path.Base(t.path)
+		}
+		if len(q.tracks) > 1 {
+			n.Detail = fmt.Sprintf("%d of %d", q.idx()+1, len(q.tracks))
+		}
+		return n
+	}
+	switch {
+	case d.usbQ != nil:
+		return usb(d.usbQ, false)
+	case d.usbPaused != nil:
+		return usb(d.usbPaused.q, true)
+	case d.media != nil && d.mediaSrc == "fm" && hz != 0:
+		return fm(speaker)
+	case d.media != nil:
+		return nowPlaying{Source: d.mediaSrc, Title: strings.TrimPrefix(d.mediaName, "Sleep sound: "), OnClock: true}
+	case hz != 0:
+		return fm(false)
+	case ssPlaying:
+		return nowPlaying{Source: "music_assistant", Title: d.ssNow, OnClock: true}
+	}
+	return nowPlaying{}
+}
+
 func (b *webBackend) Status() map[string]any {
 	d, tk := b.d, b.tk
+	ssPlaying := d.sendspin != nil && d.sendspin.Playing() // its own lock: not under d.mu
 	d.mu.Lock()
 	st, muted, ringing := d.st, d.muted, d.alarm != nil
 	hwMuted, softMuted := d.hwMuted, d.softMuted
 	mediaPlaying, mediaName := d.media != nil, d.mediaName
+	np := d.nowPlayingLocked(ssPlaying)
 	// the USB transport line: what is loaded (playing or paused), where it is
 	var (
 		usbTitle           string
@@ -438,6 +549,9 @@ func (b *webBackend) Status() map[string]any {
 		"usb_duration":     usbDur.Seconds(),
 		"usb_shuffle":      usbShuffle,
 		"usb_repeat":       usbRepeatMode,
+		"usb_drive":        b.usb.Drive(),
+		"radio_stick":      radioStickIn(),
+		"now_playing":      np,
 		"cpu_cores":        runtime.NumCPU(),
 		"weather_age":      -1.0,
 	}
@@ -480,6 +594,7 @@ func (b *webBackend) Status() map[string]any {
 	}
 	nActive, nDark := d.night.State()
 	s["night_active"], s["room_dark"] = nActive, nDark
+	s["dnd"], s["dnd_by_hand"] = d.dnd.status()
 	wv := d.wx.view()
 	if !wv.Updated.IsZero() {
 		s["weather_age"] = time.Since(wv.Updated).Seconds()
@@ -667,6 +782,28 @@ func (b *webBackend) ApplyConfig(c config.Config) error {
 	if _, ok := chimeByID(c.Chime.Sound); !ok && c.Chime.Sound != "" {
 		return fmt.Errorf("unknown chime %q", c.Chime.Sound)
 	}
+	switch c.DND.Schedule {
+	case "", "none", "night":
+	case "times":
+		if _, err := parseClock(c.DND.Start); err != nil {
+			return fmt.Errorf("do not disturb start: %w", err)
+		}
+		if _, err := parseClock(c.DND.End); err != nil {
+			return fmt.Errorf("do not disturb end: %w", err)
+		}
+	default:
+		return fmt.Errorf("unknown do-not-disturb schedule %q", c.DND.Schedule)
+	}
+	switch c.Radio.Region {
+	case "", "europe", "americas", "japan":
+	default:
+		return fmt.Errorf("unknown radio region %q", c.Radio.Region)
+	}
+	switch c.Radio.Reception {
+	case "", "normal", "weak", "strong":
+	default:
+		return fmt.Errorf("unknown radio reception %q", c.Radio.Reception)
+	}
 	switch c.Chime.Quiet {
 	case "night", "times", "none":
 	default:
@@ -747,6 +884,10 @@ func (b *webBackend) Action(name string, v float64) error {
 		d.setVolume(float32(v))
 	case "chime":
 		d.out.Play(output.NewSamples(d.chimeWake, 0), 1, "alert")
+	case "snooze_cancel":
+		d.cancelSnooze()
+	case "stop_playing": // the Player's Stop for whatever plays (now_playing)
+		d.stopPlaying()
 	case "alarm_preview": // the selected timer sound
 		d.previewSound(d.cfg.Get().Voice.AlarmSound)
 	case "night_light":
@@ -755,6 +896,8 @@ func (b *webBackend) Action(name string, v float64) error {
 		b.tk.syncNow()
 	case "night_mode":
 		d.night.setOverride(v != 0)
+	case "dnd": // do not disturb by hand (until the schedule next changes)
+		d.dnd.set(v != 0)
 	case "mute":
 		d.setSoftMuted(v != 0)
 	case "setup_mode": // the setup hotspot on (1) / off (0)
@@ -883,4 +1026,19 @@ func (d *daemon) previewSound(id string) {
 	pcm := alarmTone(id)
 	ms := len(pcm) / output.Channels * 1000 / output.Rate
 	d.out.Play(output.NewSamples(pcm, max(0, 6000/ms-1)), 1, "alert")
+}
+
+// joinTitle: "Artist - Title" for the clock's face and the now-playing line.
+func joinTitle(t libTrack) string {
+	if t.Artist == "" {
+		return t.Title
+	}
+	return t.Artist + " - " + t.Title
+}
+
+// radioStickIn: an RTL-SDR stick is on the USB bus (the page refreshes the radio
+// when it changes; a sysfs read, cheap enough for the status poll).
+func radioStickIn() bool {
+	_, _, err := rtlsdr.Find()
+	return err == nil
 }

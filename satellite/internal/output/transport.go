@@ -15,9 +15,31 @@ import (
 type TrackInfo struct {
 	Duration time.Duration
 	Rate     int
-	// Name is "Artist - Title" (or just one of them) from the FLAC Vorbis
-	// comments; "" when the file has none.
+	// Name is "Artist - Title" (or just one of them) from the tags (FLAC
+	// Vorbis comments, ID3); "" when the file has none.
 	Name string
+	// the tags one by one ("" when missing), for players that show them apart
+	Title, Artist, Album string
+	// for a music library: album artist, year (as tagged, usually "2006" or a
+	// date), track and disc number (0 when missing)
+	AlbumArtist, Year string
+	Track, Disc       int
+}
+
+// tagNum reads a track or disc number ("3", "03", "3/12"); 0 when there is none.
+func tagNum(s string) int {
+	s, _, _ = strings.Cut(strings.TrimSpace(s), "/")
+	n := 0
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			break
+		}
+		n = n*10 + int(c-'0')
+		if n > 9999 {
+			return 0
+		}
+	}
+	return n
 }
 
 // TrackMeta reads a WAV, FLAC or MP3 header without touching the audio:
@@ -87,23 +109,27 @@ func flacHeader(r io.Reader) (info TrackInfo, err error) {
 				return info, err
 			}
 			if vc, ok := block.Body.(*meta.VorbisComment); ok && info.Name == "" {
-				var title, artist string
 				for _, tag := range vc.Tags {
 					switch strings.ToUpper(tag[0]) {
 					case "TITLE":
-						title = tag[1]
+						info.Title = strings.TrimSpace(tag[1])
 					case "ARTIST":
-						artist = tag[1]
+						info.Artist = strings.TrimSpace(tag[1])
+					case "ALBUM":
+						info.Album = strings.TrimSpace(tag[1])
+					case "ALBUMARTIST", "ALBUM ARTIST", "ALBUM_ARTIST":
+						info.AlbumArtist = strings.TrimSpace(tag[1])
+					case "DATE", "YEAR":
+						if info.Year == "" {
+							info.Year = strings.TrimSpace(tag[1])
+						}
+					case "TRACKNUMBER":
+						info.Track = tagNum(tag[1])
+					case "DISCNUMBER":
+						info.Disc = tagNum(tag[1])
 					}
 				}
-				info.Name = strings.TrimSpace(title)
-				if artist != "" {
-					if info.Name == "" {
-						info.Name = artist
-					} else {
-						info.Name = artist + " - " + info.Name
-					}
-				}
+				info.Name = joinName(info.Title, info.Artist)
 			}
 		}
 		last := block.IsLast

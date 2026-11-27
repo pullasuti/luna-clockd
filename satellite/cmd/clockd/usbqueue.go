@@ -158,6 +158,34 @@ func queueFromList(entries []ent, chosen string) *usbQueue {
 	return q
 }
 
+// queueFromPaths is a queue in the given order (from the library), with
+// chosen current; non-audio and duplicate paths are left out, at most
+// usbQueueMax. A chosen file missing from it plays first.
+func queueFromPaths(paths []string, chosen string) *usbQueue {
+	seen := map[string]bool{}
+	var tracks []usbTrack
+	oi := -1
+	for _, p := range paths {
+		p = path.Clean("/" + p)
+		if seen[p] || !audioExt(p) || len(tracks) >= usbQueueMax {
+			continue
+		}
+		seen[p] = true
+		if p == chosen {
+			oi = len(tracks)
+		}
+		tracks = append(tracks, usbTrack{path: p})
+	}
+	if oi < 0 {
+		tracks = append([]usbTrack{{path: chosen}}, tracks...)
+		oi = 0
+	}
+	return &usbQueue{tracks: tracks, order: nameOrder(len(tracks)), oi: oi}
+}
+
+// usbQueueMax: tracks in one queue at most (a whole library's songs list).
+const usbQueueMax = 5000
+
 // audioExt is the USB player's file whitelist.
 func audioExt(name string) bool {
 	switch strings.ToLower(path.Ext(name)) {

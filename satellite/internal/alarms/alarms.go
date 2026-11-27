@@ -23,8 +23,12 @@ type Alarm struct {
 	Days    []int  `json:"days,omitempty"` // 0 = Sunday ... 6 = Saturday
 	On      bool   `json:"on"`
 	Label   string `json:"label,omitempty"`
-	Sound   string `json:"sound,omitempty"` // a timer sound name; "" = the clock's timer sound
+	Sound   string `json:"sound,omitempty"` // a timer sound name, or "fm:91.2" (the FM radio); "" = the clock's timer sound
 	Sunrise bool   `json:"sunrise,omitempty"`
+	Fade    int    `json:"fade,omitempty"` // minutes the sound fades in from near silence (1-3); 0 = the quick 30 s ramp
+	// Skip is a day ("2006-01-02") the alarm does not ring on: "skip the next
+	// one" (a past day is harmless and just never matches again)
+	Skip string `json:"skip,omitempty"`
 }
 
 // HM is the alarm's hour and minute.
@@ -56,21 +60,38 @@ func (a Alarm) onDay(w time.Weekday) bool {
 	return false
 }
 
-// Next is the first time after t the alarm rings, in t's location; zero when
-// it is off or invalid.
+// Next is the first time after t the alarm rings, in t's location (a skipped
+// day left out); zero when it is off or invalid.
 func (a Alarm) Next(t time.Time) time.Time {
 	h, m, err := a.HM()
 	if !a.On || err != nil {
 		return time.Time{}
 	}
 	y, mo, d := t.Date()
-	for i := 0; i <= 7; i++ {
+	for i := 0; i <= 14; i++ { // two weeks: a weekly alarm with its next day skipped
 		c := time.Date(y, mo, d+i, h, m, 0, 0, t.Location())
-		if c.After(t) && a.onDay(c.Weekday()) {
+		if c.After(t) && a.onDay(c.Weekday()) && c.Format(time.DateOnly) != a.Skip {
 			return c
 		}
 	}
 	return time.Time{}
+}
+
+// SkipNext: the alarm with its next ring after t skipped (skip false: with
+// no day skipped).
+func (a Alarm) SkipNext(t time.Time, skip bool) Alarm {
+	a.Skip = ""
+	if skip {
+		if n := a.Next(t); !n.IsZero() {
+			a.Skip = n.Format(time.DateOnly)
+		}
+	}
+	return a
+}
+
+// Skipping reports whether a coming ring (today or later, as of t) is skipped.
+func (a Alarm) Skipping(t time.Time) bool {
+	return a.Skip != "" && a.Skip >= t.Format(time.DateOnly)
 }
 
 // List is all of a clock's alarms.
@@ -96,6 +117,20 @@ func (l List) AnyOn() bool {
 		}
 	}
 	return false
+}
+
+// RadioHz is the station of an FM radio alarm sound ("fm:91.2" -> 91200000
+// Hz, on the 100 kHz raster, 76-108 MHz: Japan's band included).
+func RadioHz(sound string) (int, bool) {
+	s, ok := strings.CutPrefix(sound, "fm:")
+	if !ok {
+		return 0, false
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil || f < 76 || f > 108 {
+		return 0, false
+	}
+	return int(f*10+0.5) * 100_000, true
 }
 
 // Clean checks a list from the web UI or Home Assistant: valid times and
@@ -128,8 +163,22 @@ func (l List) Clean(sounds map[string]bool) (List, error) {
 		if len([]rune(a.Label)) > 40 {
 			return nil, fmt.Errorf("alarm %d: label longer than 40 characters", i+1)
 		}
-		if a.Sound != "" && sounds != nil && !sounds[a.Sound] {
+		if hz, radio := RadioHz(a.Sound); radio {
+			a.Sound = fmt.Sprintf("fm:%.1f", float64(hz)/1e6)
+		} else if p, usb := strings.CutPrefix(a.Sound, "usb:"); usb {
+			if !strings.HasPrefix(p, "/") || len(p) > 1024 || strings.ContainsRune(p, 0) {
+				return nil, fmt.Errorf("alarm %d: sound %q: want a file on the USB drive such as usb:/Music/song.mp3", i+1, a.Sound)
+			}
+		} else if strings.HasPrefix(a.Sound, "fm:") {
+			return nil, fmt.Errorf("alarm %d: sound %q: want an FM frequency such as fm:91.2", i+1, a.Sound)
+		} else if a.Sound != "" && sounds != nil && !sounds[a.Sound] {
 			return nil, fmt.Errorf("alarm %d: unknown sound %q", i+1, a.Sound)
+		}
+		if a.Fade < 0 || a.Fade > 3 {
+			return nil, fmt.Errorf("alarm %d: fade-in %d minutes (want 0-3)", i+1, a.Fade)
+		}
+		if _, err := time.Parse(time.DateOnly, a.Skip); a.Skip != "" && err != nil {
+			return nil, fmt.Errorf("alarm %d: skip %q: want a date such as 2026-11-24", i+1, a.Skip)
 		}
 		if a.ID == "" || ids[a.ID] || len(a.ID) > 32 {
 			a.ID = newID(ids)

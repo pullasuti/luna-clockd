@@ -7,6 +7,37 @@ is the line the clock's System > Update page shows for that version: one plain s
 at most 140 characters. Anything below it is detail for readers of this file.
 `release.sh` refuses to build a package without an entry for its version.
 
+## 1.7.0 (2026-11-28)
+
+A new Player with a USB music library and FM radio, songs and radio for alarms, and clockd is now GPL-3.0-or-later.
+
+- **Licence:** clockd is now licensed under the GNU GPL v3 or later (1.0.0 was Apache-2.0).
+  The FM radio's stick setup follows librtlsdr (GPL-2.0-or-later) and is credited to it.
+- **Player (Audio tab):** one place for music from the USB drive and the FM radio. It plays
+  on the Clock speaker, on This device (your browser plays it itself, with cover art and
+  lock-screen controls), or both (two separate players, not in sync). A clock volume
+  slider sits right there.
+- **USB music library:** albums with covers, artists, songs and a filter, built from the
+  tags; folders stay as a view. A song plays with the rest of its album after it.
+- **FM radio (experimental):** from an RTL-SDR stick (RTL2832U with an R820T or R820T2
+  tuner) in the USB socket; no internet or Home Assistant needed. Station search, stereo,
+  station names (RDS), favourites, region and reception settings. Without a stick, the
+  Player says what you need.
+- **Radio on your network:** a secret FLAC stream link for Home Assistant, Music Assistant
+  or a browser. Home Assistant gets an FM radio list of your favourites and can play
+  `fm:91.2`.
+- **Alarms:** wake up to an FM station or a song from the USB drive (the timer sound rings
+  if the stick, drive or song is missing); fade in over 1-3 minutes; skip a repeating
+  alarm's next ring; press a button again right after snoozing for a longer snooze;
+  cancel a snooze.
+- **Do not disturb:** silences the chime, wake sound, announcements and startup sound by
+  schedule or switch; alarms still ring.
+- **LED notifications** from Home Assistant: a colour on the status LEDs for a while,
+  pulsing, blinking or steady.
+- **Nearest clock answers:** with several clocks in earshot, the one that heard you best
+  answers; the others stay quiet (Voice › Nearest clock, UDP 6054 on the local network).
+- **Removed:** the `tools/rtlprobe` test program is no longer part of the source.
+
 ## 1.0.0 (2026-11-20)
 
 The first public release: the Lenovo Smart Clock Essential as a local Home Assistant voice satellite and alarm clock.
